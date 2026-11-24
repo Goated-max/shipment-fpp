@@ -1,3 +1,5 @@
+
+
 extends Node
 # Free-for-all networking for Shipment FPP.
 #  - Android: Bluetooth Classic (RFCOMM) through the ShipmentBt plugin (up to 4 phones).
@@ -10,7 +12,8 @@ signal lobby_changed(names: Array)
 signal started
 signal host_lost
 signal match_ended(name: String)
-
+signal device_found(name: String, addr: String)
+signal scan_done
 const PORT := 7788
 const TICK := 1.0 / 15.0
 const MAX_PLAYERS := 4
@@ -49,7 +52,8 @@ func _ready() -> void:
         bt.connect("peer_disconnected", _on_link_down)
         bt.connect("data_received", _on_bt_data)
         bt.connect("bt_error", _on_bt_error)
-
+        bt.connect("device_found", _on_bt_device)
+        bt.connect("scan_finished", _on_bt_scan_done)
 func has_bt() -> bool:
     return bt != null and bool(bt.call("is_enabled"))
 
@@ -64,41 +68,32 @@ func host_bt() -> void:
     is_host = true
     backend = "bt"
     bt.call("host", MAX_PLAYERS - 1)
-    status.emit("Hosting over Bluetooth. Friends: pair in Android settings, then JOIN BLUETOOTH.")
-    _begin_host()
-
-func host_lan() -> void:
-    reset()
-    is_host = true
-    backend = "tcp"
-    tcp_server = TCPServer.new()
-    if tcp_server.listen(PORT) != OK:
-        tcp_server = null
-        status.emit("Could not open port %d. Is another copy running?" % PORT)
-        return
-    status.emit("Hosting on LAN at %s:%d" % [_lan_ip(), PORT])
+    status.emit("You are visible for 5 minutes. Friends: tap SCAN FOR GAMES and pick this phone's name.")
     _begin_host()
 
 func join_bt(addr: String) -> void:
     reset()
     backend = "bt"
     active = true
-    status.emit("Connecting over Bluetooth...")
+    scan_stop()
+    status.emit("Connecting...")
     bt.call("join", addr)
 
-func join_lan(ip: String) -> void:
-    reset()
-    backend = "tcp"
-    var sp := StreamPeerTCP.new()
-    if ip == "" or sp.connect_to_host(ip, PORT) != OK:
-        status.emit("Bad address: %s" % ip)
-        return
-    var lk := next_link
-    next_link += 1
-    links[lk] = {"tcp": sp, "open": false}
-    host_link = lk
-    active = true
-    status.emit("Connecting to %s..." % ip)
+func scan_start() -> bool:
+    if bt == null:
+        status.emit("Bluetooth is not available on this device.")
+        return false
+    return bool(bt.call("scan_start"))
+
+func scan_stop() -> void:
+    if bt != null:
+        bt.call("scan_stop")
+
+func _on_bt_device(nm: String, addr: String) -> void:
+    device_found.emit(nm, addr)
+
+func _on_bt_scan_done() -> void:
+    scan_done.emit()
 
 func _begin_host() -> void:
     active = true
@@ -167,8 +162,6 @@ func respawn_locked() -> bool:
 
 # ---------- frame loop ----------
 func _process(dt: float) -> void:
-    if backend == "tcp":
-        _tcp_poll()
     if not active:
         return
     if _respawn_lock > 0.0:

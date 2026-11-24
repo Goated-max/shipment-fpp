@@ -1,16 +1,17 @@
 class_name Lobby
 extends Control
-# Multiplayer screen: Bluetooth (Android) or LAN (desktop/Wi-Fi), host or join, then START.
+# Bluetooth lobby: one phone taps HOST GAME, the others tap SCAN FOR GAMES and pick its name.
 
 var hud: Hud
 var status_lbl: Label
 var players_lbl: Label
 var name_in: LineEdit
-var ip_in: LineEdit
-var dev_box: VBoxContainer
-var bt_host_btn: Button
-var bt_join_btn: Button
+var list_box: VBoxContainer
+var scan_btn: Button
+var host_btn: Button
 var start_btn: Button
+var found := {}      # address -> true, so each phone appears once
+var scanning := false
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
@@ -25,39 +26,36 @@ func _ready() -> void:
     sc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     var vb := VBoxContainer.new()
     vb.add_theme_constant_override("separation", 10)
+    vb.custom_minimum_size = Vector2(340, 0)
     vb.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
     sc.add_child(vb)
-    _lbl(vb, "MULTIPLAYER  ·  FREE FOR ALL", 26, Color(1, 0.7, 0))
-    status_lbl = _lbl(vb, "Bluetooth needs the phones paired in Android settings first. LAN needs the same Wi-Fi.", 15, Color(1, 1, 1, 0.8))
+    _lbl(vb, "BLUETOOTH MULTIPLAYER", 26, Color(1, 0.7, 0))
+    status_lbl = _lbl(vb, "One phone taps HOST GAME. The others tap SCAN FOR GAMES and pick its name.", 15, Color(1, 1, 1, 0.8))
     name_in = LineEdit.new()
     name_in.placeholder_text = "Your name"
     name_in.text = "PLAYER"
     name_in.max_length = 12
     name_in.custom_minimum_size = Vector2(340, 46)
     vb.add_child(name_in)
-    bt_host_btn = _btn(vb, "HOST BLUETOOTH", _host_bt)
-    bt_join_btn = _btn(vb, "JOIN BLUETOOTH", _show_devices)
-    dev_box = VBoxContainer.new()
-    dev_box.add_theme_constant_override("separation", 6)
-    vb.add_child(dev_box)
-    ip_in = LineEdit.new()
-    ip_in.placeholder_text = "Host IP for LAN, e.g. 192.168.1.20"
-    ip_in.custom_minimum_size = Vector2(340, 46)
-    vb.add_child(ip_in)
-    _btn(vb, "HOST LAN", _host_lan)
-    _btn(vb, "JOIN LAN", _join_lan)
+    host_btn = _btn(vb, "HOST GAME", _host)
+    scan_btn = _btn(vb, "SCAN FOR GAMES", _scan)
+    list_box = VBoxContainer.new()
+    list_box.add_theme_constant_override("separation", 6)
+    list_box.custom_minimum_size = Vector2(340, 0)
+    vb.add_child(list_box)
     players_lbl = _lbl(vb, "", 16, Color(1, 1, 1, 0.9))
     start_btn = _btn(vb, "START MATCH", _start)
     start_btn.hide()
     _btn(vb, "BACK", _back)
-    bt_host_btn.visible = Net.has_bt()
-    bt_join_btn.visible = Net.has_bt()
     Net.status.connect(_on_status)
     Net.lobby_changed.connect(_on_lobby)
+    Net.device_found.connect(_on_device)
+    Net.scan_done.connect(_on_scan_done)
     hide()
 
 func open() -> void:
     show()
+    host_btn.visible = not Net.active
     start_btn.visible = Net.is_host and Net.active
 
 func _lbl(par: Control, text: String, fs: int, col: Color) -> Label:
@@ -85,43 +83,62 @@ func _name() -> void:
     var n := name_in.text.strip_edges()
     Net.my_name = n if n != "" else "PLAYER"
 
-func _host_bt() -> void:
+func _host() -> void:
     _name()
     Net.host_bt()
+    host_btn.hide()
     start_btn.show()
 
-func _show_devices() -> void:
-    for c in dev_box.get_children():
-        c.queue_free()
-    var devs := Net.bt_devices()
-    if devs.is_empty():
-        _lbl(dev_box, "No paired devices found. Pair the other phone in Android Bluetooth settings first.", 14, Color(1, 1, 1, 0.8))
+func _scan() -> void:
+    if scanning:
+        Net.scan_stop()
+        _scan_stopped()
+        status_lbl.text = "Scan stopped."
         return
-    for d in devs:
-        var parts := String(d).split("|")
-        if parts.size() < 2:
-            continue
-        _btn(dev_box, parts[0], _join_bt.bind(parts[1]))
+    for c in list_box.get_children():
+        c.queue_free()
+    found.clear()
+    if Net.scan_start():
+        scanning = true
+        scan_btn.text = "SCANNING... (tap to stop)"
+        status_lbl.text = "Scanning for nearby phones that are hosting..."
 
-func _join_bt(addr: String) -> void:
+func _scan_stopped() -> void:
+    scanning = false
+    scan_btn.text = "SCAN FOR GAMES"
+
+func _on_scan_done() -> void:
+    _scan_stopped()
+    if found.is_empty():
+        status_lbl.text = "No games found. Ask the host to tap HOST GAME, then scan again."
+    else:
+        status_lbl.text = "Tap a game to join."
+
+func _on_device(nm: String, addr: String) -> void:
+    if found.has(addr):
+        return
+    found[addr] = true
+    _btn(list_box, "%s   (tap to join)" % nm, _join.bind(addr))
+
+func _join(addr: String) -> void:
     _name()
+    if scanning:
+        Net.scan_stop()
+        _scan_stopped()
+    for c in list_box.get_children():
+        c.queue_free()
+    host_btn.hide()
+    scan_btn.hide()
+    status_lbl.text = "Connecting..."
     Net.join_bt(addr)
-    start_btn.hide()
-
-func _host_lan() -> void:
-    _name()
-    Net.host_lan()
-    start_btn.show()
-
-func _join_lan() -> void:
-    _name()
-    Net.join_lan(ip_in.text.strip_edges())
-    start_btn.hide()
 
 func _start() -> void:
     Net.start_match()
 
 func _back() -> void:
+    if scanning:
+        Net.scan_stop()
+        _scan_stopped()
     hide()
     hud.menu.show()
 

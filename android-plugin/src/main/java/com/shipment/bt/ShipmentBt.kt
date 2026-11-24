@@ -1,8 +1,14 @@
 package com.shipment.bt
 
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
 import android.util.Base64
 import org.godotengine.godot.Godot
 import org.godotengine.godot.plugin.GodotPlugin
@@ -13,8 +19,8 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.concurrent.thread
 
-// Bluetooth Classic (RFCOMM) byte stream for Godot. Data is passed as base64 strings.
-// Godot singleton name: "ShipmentBt"
+// Bluetooth Classic (RFCOMM) for Godot: scan for nearby phones, host, join.
+// Insecure RFCOMM sockets are used, so phones do not have to be paired first.
 class ShipmentBt(godot: Godot) : GodotPlugin(godot) {
 
     companion object {
@@ -22,8 +28,10 @@ class ShipmentBt(godot: Godot) : GodotPlugin(godot) {
     }
 
     private val socks = ConcurrentHashMap<Int, BluetoothSocket>()
+    private val seen = HashSet<String>()
     private var nextId = 1
     @Volatile private var server: BluetoothServerSocket? = null
+    private var receiver: BroadcastReceiver? = null
 
     override fun getPluginName() = "ShipmentBt"
 
@@ -31,6 +39,8 @@ class ShipmentBt(godot: Godot) : GodotPlugin(godot) {
         SignalInfo("peer_connected", Int::class.javaObjectType, String::class.java),
         SignalInfo("peer_disconnected", Int::class.javaObjectType),
         SignalInfo("data_received", Int::class.javaObjectType, String::class.java),
+        SignalInfo("device_found", String::class.java, String::class.java),
+        SignalInfo("scan_finished"),
         SignalInfo("bt_error", String::class.java)
     )
 
@@ -47,25 +57,99 @@ class ShipmentBt(godot: Godot) : GodotPlugin(godot) {
     @UsedByGodot
     fun is_enabled(): Boolean = adapter()?.isEnabled == true
 
+    // ---------- scanning ----------
     @UsedByGodot
-    fun paired_devices(): Array<String> = try {
-        adapter()?.bondedDevices?.map { "${it.name}|${it.address}" }?.toTypedArray() ?: arrayOf<String>()
-    } catch (e: SecurityException) {
-        arrayOf<String>()
+    fun scan_start(): Boolean {
+        val a = adapter()
+        val act = activity
+        if (a == null || !a.isEnabled || act == null) {
+            err("Turn Bluetooth on first")
+            return false
+        }
+        seen.clear()
+        unregister()
+        val r = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                when (intent.action) {
+                    BluetoothDevice.ACTION_FOUND -> {
+                        val dev = deviceFrom(intent) ?: return
+                        report(dev)
+                    }
+                    BluetoothAdapter.ACTION_DISCOVERY_FINISHED -> {
+                        unregister()
+                        ui { emitSignal("scan_finished") }
+                    }
+                }
+            }
+        }
+        receiver = r
+        val f = IntentFilter().apply {
+            addAction(BluetoothDevice.ACTION_FOUND)
+            addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED)
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            act.registerReceiver(r, f, Context.RECEIVER_EXPORTED)
+        } else {
+            act.registerReceiver(r, f)
+        }
+        try {
+            // Already-paired phones first, then anything new that is discoverable.
+            a.bondedDevices?.forEach { report(it) }
+            a.startDiscovery()
+        } catch (e: SecurityException) {
+            unregister()
+            err("Bluetooth permission denied. Allow Nearby devices for Shipment FPP in Android Settings.")
+            return false
+        }
+        return true
     }
 
-    // Accept up to maxClients phones on the fixed app UUID.
+    @UsedByGodot
+    fun scan_stop() {
+        try { adapter()?.cancelDiscovery() } catch (e: SecurityException) {}
+        unregister()
+    }
+
+    private fun report(dev: BluetoothDevice) {
+        val name: String = try { dev.name ?: return } catch (e: SecurityException) { return }
+        if (name.isBlank()) return          // skip unnamed "unknown" devices
+        if (!seen.add(dev.address)) return  // one entry per address
+        ui { emitSignal("device_found", name, dev.address) }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun deviceFrom(intent: Intent): BluetoothDevice? =
+        if (Build.VERSION.SDK_INT >= 33)
+            intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+        else
+            intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+
+    private fun unregister() {
+        val r = receiver ?: return
+        receiver = null
+        try { activity?.unregisterReceiver(r) } catch (e: IllegalArgumentException) {}
+    }
+
+    // ---------- host / join ----------
     @UsedByGodot
     fun host(maxClients: Int) {
         val a = adapter()
-        if (a == null || !a.isEnabled) {
+        val act = activity
+        if (a == null || !a.isEnabled || act == null) {
             err("Turn Bluetooth on first")
             return
         }
         stop_server()
+        try {
+            // Makes this phone visible to scanners for 5 minutes. Android asks the player to allow it.
+            act.startActivity(
+                Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
+                    .putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300)
+            )
+        } catch (e: Exception) {}
         thread(isDaemon = true) {
             try {
-                val srv = a.listenUsingRfcommWithServiceRecord("ShipmentFPP", APP_UUID)
+                val srv = a.listenUsingInsecureRfcommWithServiceRecord("ShipmentFPP", APP_UUID)
                 server = srv
                 while (true) {
                     val s = srv.accept()
@@ -76,9 +160,9 @@ class ShipmentBt(godot: Godot) : GodotPlugin(godot) {
                     attach(s, s.remoteDevice.address)
                 }
             } catch (e: IOException) {
-                if (server != null) err("Bluetooth host stopped: ${e.message}")
+                if (server != null) err("Hosting stopped: ${e.message}")
             } catch (e: SecurityException) {
-                err("Bluetooth permission denied")
+                err("Bluetooth permission denied. Allow Nearby devices for Shipment FPP in Android Settings.")
             }
         }
     }
@@ -90,23 +174,23 @@ class ShipmentBt(godot: Godot) : GodotPlugin(godot) {
             err("Turn Bluetooth on first")
             return
         }
+        scan_stop()
         thread(isDaemon = true) {
             try {
-                try { a.cancelDiscovery() } catch (_: SecurityException) {}
-                val dev = a.getRemoteDevice(address)
-                val s = dev.createRfcommSocketToServiceRecord(APP_UUID)
+                val s = a.getRemoteDevice(address).createInsecureRfcommSocketToServiceRecord(APP_UUID)
                 s.connect()
                 attach(s, address)
             } catch (e: IOException) {
-                err("Could not connect: ${e.message}")
+                err("Could not connect. Make sure the host tapped HOST GAME.")
             } catch (e: SecurityException) {
-                err("Bluetooth permission denied")
+                err("Bluetooth permission denied. Allow Nearby devices for Shipment FPP in Android Settings.")
             } catch (e: IllegalArgumentException) {
-                err("Bad Bluetooth address")
+                err("Bad Bluetooth address.")
             }
         }
     }
 
+    // ---------- data ----------
     @UsedByGodot
     fun send(id: Int, b64: String): Boolean {
         val s = socks[id] ?: return false
@@ -130,6 +214,7 @@ class ShipmentBt(godot: Godot) : GodotPlugin(godot) {
 
     @UsedByGodot
     fun stop() {
+        scan_stop()
         stop_server()
         for (id in socks.keys.toList()) drop(id)
     }
@@ -148,7 +233,7 @@ class ShipmentBt(godot: Godot) : GodotPlugin(godot) {
                     val b64 = Base64.encodeToString(buf.copyOf(n), Base64.NO_WRAP)
                     ui { emitSignal("data_received", id, b64) }
                 }
-            } catch (_: IOException) {
+            } catch (e: IOException) {
             } finally {
                 drop(id)
             }
@@ -157,13 +242,13 @@ class ShipmentBt(godot: Godot) : GodotPlugin(godot) {
 
     private fun drop(id: Int) {
         val s = socks.remove(id) ?: return
-        try { s.close() } catch (_: IOException) {}
+        try { s.close() } catch (e: IOException) {}
         ui { emitSignal("peer_disconnected", id) }
     }
 
     private fun stop_server() {
         val s = server ?: return
         server = null
-        try { s.close() } catch (_: IOException) {}
+        try { s.close() } catch (e: IOException) {}
     }
 }
