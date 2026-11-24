@@ -83,7 +83,19 @@ func host_bt() -> void:
     status.emit("You are visible for 5 minutes. Friends: tap SCAN FOR GAMES and pick this phone's name.")
     _begin_host()
 
+func scan_start() -> bool:
+    if bt == null:
+        status.emit("Bluetooth plugin missing from this build. Rebuild the APK.")
+        return false
+    if not bool(bt.call("is_enabled")):
+        status.emit("Turn Bluetooth on first.")
+        return false
+    return bool(bt.call("scan_start"))
+
 func join_bt(addr: String) -> void:
+    if bt == null:
+        status.emit("Bluetooth plugin missing from this build. Rebuild the APK.")
+        return
     reset()
     backend = "bt"
     active = true
