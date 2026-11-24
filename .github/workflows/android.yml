@@ -1,0 +1,84 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: "4.3"
+
+jobs:
+  plugin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Build ShipmentBt Bluetooth plugin (AAR)
+        run: gradle -p android-plugin assembleRelease
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ShipmentBt-aar
+          path: android-plugin/build/outputs/aar/*-release.aar
+
+  export-android:
+    needs: plugin
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ShipmentBt-aar
+          path: plugin-aar
+
+      - name: Install Bluetooth plugin into the project
+        run: |
+          mkdir -p android/plugins
+          cp plugin-aar/*.aar android/plugins/ShipmentBt.aar
+          ls -la android/plugins
+
+      - name: Setup export templates
+        run: |
+          mkdir -v -p ~/.local/share/godot/export_templates ~/.config/godot
+          mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+
+      - name: Create debug keystore and Godot Android settings
+        run: |
+          keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -keystore debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -validity 9999 -deststoretype pkcs12
+          mv debug.keystore /root/debug.keystore
+          {
+            echo '[gd_resource type="EditorSettings" format=3]'
+            echo '[resource]'
+            echo 'export/android/android_sdk_path = "/usr/lib/android-sdk"'
+            echo 'export/android/debug_keystore = "/root/debug.keystore"'
+            echo 'export/android/debug_keystore_user = "androiddebugkey"'
+            echo 'export/android/debug_keystore_pass = "android"'
+            echo 'export/android/force_system_user = false'
+            echo 'export/android/shutdown_adb_on_exit = true'
+          } > ~/.config/godot/editor_settings-4.tres
+
+      - name: Import project resources
+        run: godot --headless --verbose --import || true
+
+      - name: Export debug APK
+        run: |
+          mkdir -v -p build
+          godot --headless --verbose --export-debug "Android Debug" build/ShipmentFPP-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ShipmentFPP-debug-apk
+          path: build/ShipmentFPP-debug.apk

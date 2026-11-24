@@ -1,0 +1,11 @@
+[config]
+
+name="ShipmentBt"
+binary_type="local"
+binary="ShipmentBt.aar"
+
+[dependencies]
+
+local=[]
+remote=[]
+custom_maven_repos=[]
