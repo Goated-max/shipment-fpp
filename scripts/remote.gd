@@ -7,7 +7,6 @@ var alive := true
 var target := Vector3.ZERO
 var tyaw := 0.0
 var tpitch := 0.0
-var label: Label3D
 var head: Node3D
 
 func setup(col: Color) -> void:
@@ -27,14 +26,7 @@ func setup(col: Color) -> void:
     _box(head, Vector3(0.25, 0.27, 0.25), Vector3.ZERO, skin)
     _box(head, Vector3(0.27, 0.12, 0.27), Vector3(0, 0.12, 0), dark)
     _box(head, Vector3(0.22, 0.06, 0.04), Vector3(0, 0.02, -0.13), _mat(Color(0.9, 0.2, 0.15)))
-    label = Label3D.new()
-    label.position = Vector3(0, 2.1, 0)
-    label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-    label.pixel_size = 0.006
-    label.font_size = 32
-    label.outline_size = 10
-    label.no_depth_test = true
-    add_child(label)
+
 
 func snap(p: Vector3) -> void:
     global_position = p
@@ -46,9 +38,6 @@ func set_target(p: Vector3, y: float, pt: float, a: bool, dead: bool, nm: String
     tpitch = pt
     alive = not dead
     visible = alive
-    var t := "%s  %d" % [nm, k]
-    if label.text != t:
-        label.text = t
 
 func _process(dt: float) -> void:
     var k := 1.0 - exp(-14.0 * dt)

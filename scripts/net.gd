@@ -361,6 +361,8 @@ func _on_msg(link: int, m: Dictionary) -> void:
                 _apply_hit(pid, int(m.get("t", 0)), float(m.get("dmg", 0.0)))
             "resp":
                 _apply_respawn(pid, m.get("p", Vector3.ZERO))
+            "fire":
+                _host_fire(pid, m.get("p", Vector3.ZERO))
     else:
         match k:
             "welcome":
@@ -376,6 +378,8 @@ func _on_msg(link: int, m: Dictionary) -> void:
                 _apply_world(m.get("pl", {}))
             "kill":
                 _on_kill(int(m.get("a", 0)), int(m.get("v", 0)), m.get("p", Vector3.ZERO))
+            "fire":
+                _on_fire(int(m.get("a", 0)), m.get("p", Vector3.ZERO))
             "end":
                 match_ended.emit(String(m.get("w", "")))
 
@@ -515,3 +519,22 @@ func _lan_ip() -> String:
         if a.begins_with("192.168.") or a.begins_with("10.") or a.begins_with("172."):
             return a
     return "127.0.0.1"
+
+
+# ---------- gunfire pings for the radar (multiplayer) ----------
+# Every shot is sent to the host, which relays it so other players ping the shooter on their radar.
+func report_fire(p: Vector3) -> void:
+    if not active or not in_match:
+        return
+    if is_host:
+        _bcast({"k": "fire", "a": my_id, "p": p})
+    else:
+        _send(host_link, {"k": "fire", "p": p})
+
+func _host_fire(pid: int, p: Vector3) -> void:
+    _bcast({"k": "fire", "a": pid, "p": p})
+    _on_fire(pid, p)
+
+func _on_fire(a: int, p: Vector3) -> void:
+    if a != my_id:
+        main.bot_fired(p)

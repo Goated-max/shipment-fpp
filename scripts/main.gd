@@ -559,8 +559,10 @@ var uav_t := 0.0
 var shots_fired := 0
 var shots_hit := 0
 
-func shot_fired() -> void:
+func shot_fired(p: Vector3) -> void:
     shots_fired += 1
+    if Net.active:
+        Net.report_fire(p)
 
 func accuracy_text() -> String:
     if shots_fired <= 0:

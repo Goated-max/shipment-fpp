@@ -357,7 +357,7 @@ func _weapon(dt: float, sliding: bool) -> void:
 func _shoot() -> void:
     mag -= 1
     cd = float(WEAPONS[cur]["rate"])
-    main.shot_fired()
+    main.shot_fired(org)
     shots += 1
     idle = 0.0
     hud.set_ammo(mag, reserve)
