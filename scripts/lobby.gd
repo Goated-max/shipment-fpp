@@ -10,7 +10,7 @@ var list_box: VBoxContainer
 var scan_btn: Button
 var host_btn: Button
 var start_btn: Button
-var found := {}      # address -> true, so each phone appears once
+var found := {}
 var scanning := false
 
 func _ready() -> void:

@@ -34,8 +34,6 @@ Actions run fails, paste the message and it is usually a one-line fix.
 - Menu -> MULTIPLAYER. One phone taps HOST, the others tap JOIN.
 - **Bluetooth (Android):** pair the phones first in Android Bluetooth settings. The host taps
   HOST BLUETOOTH, the others tap JOIN BLUETOOTH and pick the host from the list. Range is about 10 m.
-- **LAN (desktop or same Wi-Fi):** the host taps HOST LAN and shares the IP shown on screen. Joiners
-  type it into the box and tap JOIN LAN. Port 7788. Two windows on one PC work with 127.0.0.1.
 - Host taps START MATCH. Bots are removed in multiplayer. First to 15 kills wins, then the score resets.
 - The host is authoritative for HP, kills and respawns. Clients send their own position and hit claims.
 - The Bluetooth plugin lives in `android-plugin/` (Kotlin). The workflow builds it into an AAR and

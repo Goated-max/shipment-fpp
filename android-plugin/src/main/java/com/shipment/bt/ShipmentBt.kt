@@ -93,7 +93,6 @@ class ShipmentBt(godot: Godot) : GodotPlugin(godot) {
             act.registerReceiver(r, f)
         }
         try {
-            // Already-paired phones first, then anything new that is discoverable.
             a.bondedDevices?.forEach { report(it) }
             a.startDiscovery()
         } catch (e: SecurityException) {
@@ -112,8 +111,8 @@ class ShipmentBt(godot: Godot) : GodotPlugin(godot) {
 
     private fun report(dev: BluetoothDevice) {
         val name: String = try { dev.name ?: return } catch (e: SecurityException) { return }
-        if (name.isBlank()) return          // skip unnamed "unknown" devices
-        if (!seen.add(dev.address)) return  // one entry per address
+        if (name.isBlank()) return
+        if (!seen.add(dev.address)) return
         ui { emitSignal("device_found", name, dev.address) }
     }
 
@@ -141,7 +140,6 @@ class ShipmentBt(godot: Godot) : GodotPlugin(godot) {
         }
         stop_server()
         try {
-            // Makes this phone visible to scanners for 5 minutes. Android asks the player to allow it.
             act.startActivity(
                 Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
                     .putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300)

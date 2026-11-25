@@ -386,7 +386,7 @@ func _build_menu_death() -> void:
     mc.add_child(ss)
     _button_in(mc, "DEPLOY", _deploy)
     _button_in(mc, "CUSTOMIZE HUD LAYOUT", _start_edit.bind(true))
-    _button_in(mc, "MULTIPLAYER (BLUETOOTH / LAN)", _open_lobby)
+    _button_in(mc, "MULTIPLAYER (BLUETOOTH)", _open_lobby)
 
 # ---------- layout (position + scale per element, saved to user://) ----------
 func _rect(id: String) -> Rect2:

@@ -1,9 +1,6 @@
-
-
 extends Node
 # Free-for-all networking for Shipment FPP.
 #  - Android: Bluetooth Classic (RFCOMM) through the ShipmentBt plugin (up to 4 phones).
-#  - Desktop/LAN: TCP on port 7788, for testing with two game windows or two PCs.
 # The host (player id 1) owns HP, kills, deaths and respawns. Clients send their own
 # position and fire claims; the host validates and broadcasts the world at 15 Hz.
 
@@ -14,6 +11,7 @@ signal host_lost
 signal match_ended(name: String)
 signal device_found(name: String, addr: String)
 signal scan_done
+
 const PORT := 7788
 const TICK := 1.0 / 15.0
 const MAX_PLAYERS := 4
@@ -54,49 +52,27 @@ func _ready() -> void:
         bt.connect("bt_error", _on_bt_error)
         bt.connect("device_found", _on_bt_device)
         bt.connect("scan_finished", _on_bt_scan_done)
+
 func has_bt() -> bool:
     return bt != null and bool(bt.call("is_enabled"))
 
-func bt_devices() -> Array:
-    if bt == null:
-        return []
-    return bt.call("paired_devices")
-
 # ---------- session setup ----------
-func scan_start() -> bool:
-    if bt == null:
-        status.emit("Bluetooth plugin missing from this build. Rebuild the APK.")
-        return false
-    if not bool(bt.call("is_enabled")):
-        status.emit("Turn Bluetooth on first.")
-        return false
-    return bool(bt.call("scan_start"))
-
 func host_bt() -> void:
+    reset()
     if bt == null:
         status.emit("Bluetooth plugin missing from this build. Rebuild the APK.")
         return
-    reset()
     is_host = true
     backend = "bt"
     bt.call("host", MAX_PLAYERS - 1)
     status.emit("You are visible for 5 minutes. Friends: tap SCAN FOR GAMES and pick this phone's name.")
     _begin_host()
 
-func scan_start() -> bool:
-    if bt == null:
-        status.emit("Bluetooth plugin missing from this build. Rebuild the APK.")
-        return false
-    if not bool(bt.call("is_enabled")):
-        status.emit("Turn Bluetooth on first.")
-        return false
-    return bool(bt.call("scan_start"))
-
 func join_bt(addr: String) -> void:
+    reset()
     if bt == null:
         status.emit("Bluetooth plugin missing from this build. Rebuild the APK.")
         return
-    reset()
     backend = "bt"
     active = true
     scan_stop()
@@ -105,7 +81,10 @@ func join_bt(addr: String) -> void:
 
 func scan_start() -> bool:
     if bt == null:
-        status.emit("Bluetooth is not available on this device.")
+        status.emit("Bluetooth plugin missing from this build. Rebuild the APK.")
+        return false
+    if not bool(bt.call("is_enabled")):
+        status.emit("Turn Bluetooth on first.")
         return false
     return bool(bt.call("scan_start"))
 
