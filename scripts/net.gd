@@ -75,8 +75,7 @@ func ensure_permissions() -> bool:
     if missing.is_empty():
         return true
     OS.request_permissions()
-    status.emit("Allow Nearby devices in the popup, then tap again. Still missing: %s. If no popup appears, open Android Settings > Apps > Shipment FPP > Permissions." % ", ".join(missing))
-    return false
+    return true
 
 func host_bt() -> void:
     if not ensure_permissions():

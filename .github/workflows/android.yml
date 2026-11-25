@@ -107,6 +107,10 @@ jobs:
           unzip -tq "$APK"
           unzip -l "$APK" | grep -E "AndroidManifest.xml|META-INF" || echo "WARNING: no signature files"
 
+      - name: Show Bluetooth permissions in the APK
+        run: |
+          unzip -p build/ShipmentFPP-debug.apk AndroidManifest.xml | strings -el | grep -i "BLUETOOTH\|LOCATION" || echo "NO BLUETOOTH PERMISSIONS IN APK"
+
       - uses: actions/upload-artifact@v4
         with:
           name: ShipmentFPP-debug-apk
