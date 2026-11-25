@@ -57,7 +57,30 @@ func has_bt() -> bool:
     return bt != null and bool(bt.call("is_enabled"))
 
 # ---------- session setup ----------
+const BT_PERMS := [
+    "android.permission.BLUETOOTH_SCAN",
+    "android.permission.BLUETOOTH_CONNECT",
+    "android.permission.BLUETOOTH_ADVERTISE",
+]
+
+# Checks the Bluetooth permissions. If any are missing, asks Android and says which ones.
+func ensure_permissions() -> bool:
+    if OS.get_name() != "Android":
+        return true
+    var granted: Array = OS.get_granted_permissions()
+    var missing := PackedStringArray()
+    for p in BT_PERMS:
+        if not granted.has(p):
+            missing.append(String(p).trim_prefix("android.permission."))
+    if missing.is_empty():
+        return true
+    OS.request_permissions()
+    status.emit("Allow Nearby devices in the popup, then tap again. Still missing: %s. If no popup appears, open Android Settings > Apps > Shipment FPP > Permissions." % ", ".join(missing))
+    return false
+
 func host_bt() -> void:
+    if not ensure_permissions():
+        return
     reset()
     if bt == null:
         status.emit("Bluetooth plugin missing from this build. Rebuild the APK.")
@@ -69,6 +92,8 @@ func host_bt() -> void:
     _begin_host()
 
 func join_bt(addr: String) -> void:
+    if not ensure_permissions():
+        return
     reset()
     if bt == null:
         status.emit("Bluetooth plugin missing from this build. Rebuild the APK.")
@@ -80,6 +105,8 @@ func join_bt(addr: String) -> void:
     bt.call("join", addr)
 
 func scan_start() -> bool:
+    if not ensure_permissions():
+        return false
     if bt == null:
         status.emit("Bluetooth plugin missing from this build. Rebuild the APK.")
         return false
