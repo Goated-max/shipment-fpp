@@ -60,6 +60,8 @@ var grenades := MAX_GREN
 var gren_cd := 0.0
 var was_firing := false
 var shake_amt := 0.0
+var was_air := false
+var land_dip := 0.0
 
 func _ready() -> void:
     collision_layer = 0
@@ -205,14 +207,19 @@ func _physics_process(dt: float) -> void:
         velocity.y = -1.0
     else:
         velocity.y -= GRAV * dt
+    var pre_vy := velocity.y
     move_and_slide()
+    var grounded := is_on_floor()
+    if grounded and was_air:
+        land_dip = maxf(land_dip, clampf(-pre_vy * 0.03, 0.0, 0.28))
+    was_air = not grounded
     # body / camera
     var ch := 1.1 if (crouch or sliding) else 1.8
-    if absf(shape.height - ch) > 0.01:
-        shape.height = ch
-        col.position.y = ch * 0.5
+    shape.height = lerpf(shape.height, ch, 1.0 - exp(-14.0 * dt))
+    col.position.y = shape.height * 0.5
     eye = lerpf(eye, 0.65 if sliding else (1.05 if crouch else 1.7), 1.0 - exp(-14.0 * dt))
-    head.position.y = eye
+    head.position.y = eye - land_dip
+    land_dip = lerpf(land_dip, 0.0, 1.0 - exp(-9.0 * dt))
     roll = lerpf(roll, 0.09 if sliding else 0.0, 1.0 - exp(-10.0 * dt))
     cam.rotation.z = roll
     head.rotation.x = pitch + recoil_p
@@ -350,6 +357,7 @@ func _weapon(dt: float, sliding: bool) -> void:
 func _shoot() -> void:
     mag -= 1
     cd = float(WEAPONS[cur]["rate"])
+    main.shot_fired()
     shots += 1
     idle = 0.0
     hud.set_ammo(mag, reserve)
@@ -415,6 +423,15 @@ func respawn() -> void:
     reloading = false
     ads = false
     ads_t = 0.0
+    hud._clear_input()
+    hud.look = Vector2.ZERO
+    hud.mv = Vector2.ZERO
+    was_firing = false
+    was_air = false
+    land_dip = 0.0
+    shake_amt = 0.0
+    cam.h_offset = 0.0
+    cam.v_offset = 0.0
     head.rotation.x = 0.0
     head.position.y = eye
     hud.lock = false

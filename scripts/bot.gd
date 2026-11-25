@@ -1,6 +1,16 @@
 class_name Bot
 extends CharacterBody3D
 
+# Behaviour profiles. close/far: strafe distances, engage: range to start shooting,
+# speed: chase speed, strafe: circling speed, rate/burst: fire cadence, spread: accuracy scale.
+const ROLES := {
+    "rusher": {"name": "RUSHER", "close": 3.5, "far": 7.0, "engage": 14.0, "speed": 4.4, "strafe": 2.9, "rate": 0.11, "burst": 6, "spread": 1.3},
+    "strafer": {"name": "STRAFER", "close": 13.0, "far": 21.0, "engage": 26.0, "speed": 3.0, "strafe": 2.0, "rate": 0.2, "burst": 3, "spread": 0.8},
+    "soldier": {"name": "SOLDIER", "close": 9.0, "far": 17.0, "engage": 22.0, "speed": 3.6, "strafe": 2.3, "rate": 0.16, "burst": 4, "spread": 1.0},
+}
+var role: Dictionary = ROLES["soldier"]
+var role_name := "SOLDIER"
+
 var main: Main
 var hp := 96.0
 var alive := false
@@ -157,7 +167,7 @@ func _physics_process(dt: float) -> void:
                 see = o.distance_to(rp) > ln - 0.4
     var was := state
     if see and d < 30.0:
-        state = 2 if d < 22.0 else 1
+        state = 2 if d < float(role["engage"]) else 1
         last = Vector2(pp.x, pp.z)
         lost = 0.0
     elif state > 0:
@@ -195,17 +205,17 @@ func _physics_process(dt: float) -> void:
                 sd = -sd
                 st = 1.0 + randf() * 1.6
             var rad := 0.0
-            if d < 9.0:
+            if d < float(role["close"]):
                 rad = -1.0
-            elif d > 17.0:
+            elif d > float(role["far"]):
                 rad = 0.7
             mvd = Vector2(-u.y * sd + u.x * rad, u.x * sd + u.y * rad)
-            sp = 2.3
+            sp = float(role["strafe"])
             fdir = tov
         else:
             if ed2 > 1.2:
                 mvd = u
-                sp = 3.6
+                sp = float(role["speed"])
             fdir = tov if see else u
     var ml := mvd.length()
     if ml > 0.0 and sp > 0.0:
@@ -249,11 +259,12 @@ func _physics_process(dt: float) -> void:
         _fire(d)
 
 func _fire(d: float) -> void:
+    main.bot_fired(global_position)
     var pl := main.player
     var o := muzzle.global_position
     var c := pl.global_position + Vector3(0, 1.1, 0)
     var dir := (c - o).normalized()
-    var e := 0.025 + d * 0.0016
+    var e := (0.025 + d * 0.0016) * float(role["spread"])
     dir += Vector3(randf() - 0.5, randf() - 0.5, randf() - 0.5) * 2.0 * e
     dir = dir.normalized()
     var far := 120.0
@@ -269,6 +280,11 @@ func _fire(d: float) -> void:
     main.spawn_tracer(o, o + dir * (tt if hit else wd))
     main.play("bshot", clampf(1.0 - d / 45.0, 0.1, 0.7))
     n += 1
-    cd = (0.7 + randf() * 0.5) if n % 4 == 0 else 0.16
+    cd = (0.7 + randf() * 0.5) if n % int(role["burst"]) == 0 else float(role["rate"])
     if hit:
         pl.hurt(6.0, global_position)
+
+
+func set_role(id: String) -> void:
+    role = ROLES[id]
+    role_name = role["name"]

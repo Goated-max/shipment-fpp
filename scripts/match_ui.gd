@@ -110,9 +110,9 @@ func popup(text: String) -> void:
     popup_lbl.modulate.a = 1.0
     popup_t = 1.2
 
-func show_summary(reason: String, k: int, d: int, h: int, s: int, t: String) -> void:
+func show_summary(reason: String, k: int, d: int, h: int, s: int, t: String, acc: String) -> void:
     sum_title.text = reason
-    sum_body.text = "KILLS      %d\nDEATHS      %d\nHEADSHOTS      %d\nSCORE      %d\nTIME      %s" % [k, d, h, s, t]
+    sum_body.text = "KILLS      %d\nDEATHS      %d\nHEADSHOTS      %d\nACCURACY      %s\nSCORE      %d\nTIME      %s" % [k, d, h, acc, s, t]
     summary.show()
 
 func hide_summary() -> void:

@@ -48,6 +48,7 @@ func _ready() -> void:
         b.main = self
         add_child(b)
         bots.append(b)
+        b.set_role(["rusher", "strafer", "soldier"][i])
         b.spawn(spawn_point(b))
 
 func _env() -> void:
@@ -120,6 +121,7 @@ func set_board(t: String) -> void:
 func on_my_kill() -> void:
     hud.hitmark(true)
     play("kill")
+    add_streak()
 
 # ---------- sound ----------
 func _make_sounds() -> void:
@@ -195,6 +197,9 @@ func bot_ray(o: Vector3, d: Vector3, maxt: float) -> Dictionary:
     return best
 
 func hit_bot(b, zone: String, mult := 1.0) -> void:
+    shots_hit += 1
+    if zone == "head":
+        headshots += 1
     if b is RemotePlayer:
         hud.hitmark(zone == "head")
         play("hitm", 0.8)
@@ -266,6 +271,7 @@ func spawn_tracer(a: Vector3, b: Vector3) -> void:
 
 func _process(dt: float) -> void:
     _match_tick(dt)
+    _uav_tick(dt)
     for tr in tracers:
         var life: float = tr["life"]
         if life > 0.0:
@@ -440,7 +446,7 @@ func end_match(reason: String) -> void:
     match_over = true
     hud._clear_input()
     var secs := int(MATCH_TIME - match_t)
-    mui.show_summary(reason, kills, deaths, headshots, score, "%d:%02d" % [secs / 60, secs % 60])
+    mui.show_summary(reason, kills, deaths, headshots, score, "%d:%02d" % [secs / 60, secs % 60], accuracy_text())
     get_tree().paused = true
 
 func reset_match() -> void:
@@ -455,6 +461,11 @@ func reset_match() -> void:
     deaths = 0
     headshots = 0
     score = 0
+    shots_fired = 0
+    shots_hit = 0
+    streak = 0
+    uav_t = 0.0
+    hud.set_uav(0.0)
     hud.set_kills(0)
     for b in bots:
         b.spawn(spawn_point(b))
@@ -465,6 +476,7 @@ func reset_match() -> void:
 
 func on_player_death() -> void:
     deaths += 1
+    streak = 0
     mui.feed("YOU WERE ELIMINATED", Color(1, 0.35, 0.35))
 
 # Killfeed for networked kills (names come from the host's player table).
@@ -486,13 +498,12 @@ func damage_bot(b, amount: float, head: bool) -> void:
         b.die()
         kills += 1
         score += 150 if head else 100
-        if head:
-            headshots += 1
         hud.set_kills(kills)
+        add_streak()
         drop_at(b.global_position)
         hud.hitmark(true)
         play("kill")
-        var nm := "BOT %d" % (bots.find(b) + 1)
+        var nm := "%s %d" % [b.role_name, bots.find(b) + 1]
         mui.feed("YOU  >  %s%s" % [nm, "   HEADSHOT" if head else ""], Color(1, 0.8, 0.3))
         mui.popup("HEADSHOT +150" if head else "ELIMINATED +100")
         if kills >= KILL_GOAL:
@@ -539,3 +550,47 @@ func _boom(p: Vector3) -> void:
     var tw := ex.create_tween()
     tw.tween_property(ex, "scale", Vector3.ONE * 5.0, 0.18)
     tw.tween_callback(ex.queue_free)
+
+
+# ---------- step 5: UAV streaks, radar feed, accuracy ----------
+const UAV_TIME := 12.0
+var streak := 0
+var uav_t := 0.0
+var shots_fired := 0
+var shots_hit := 0
+
+func shot_fired() -> void:
+    shots_fired += 1
+
+func accuracy_text() -> String:
+    if shots_fired <= 0:
+        return "0%"
+    return "%d%%" % int(round(100.0 * shots_hit / shots_fired))
+
+# Every 3 kills in a row brings the UAV online for 12 seconds.
+func add_streak() -> void:
+    streak += 1
+    if streak % 3 == 0:
+        uav_t = UAV_TIME
+        mui.popup("UAV ONLINE")
+        mui.feed("UAV ONLINE  (%d kill streak)" % streak, Color(1, 0.7, 0))
+
+func bot_fired(p: Vector3) -> void:
+    hud.radar_ping(p)
+
+func _uav_tick(dt: float) -> void:
+    if uav_t > 0.0:
+        uav_t = maxf(0.0, uav_t - dt)
+    hud.set_uav(uav_t)
+    hud.radar_feed(_enemy_points())
+
+func _enemy_points() -> Array:
+    var out: Array = []
+    for b in bots:
+        if b.alive:
+            out.append(b.global_position)
+    for pid in Net.remotes:
+        var r: RemotePlayer = Net.remotes[pid]
+        if r.alive:
+            out.append(r.global_position)
+    return out

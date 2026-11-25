@@ -45,24 +45,62 @@ class TouchBtn extends Control:
         draw_string(f, Vector2(c.x - ts.x * 0.5, c.y + fs * 0.35), label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
 
 class Radar extends Control:
-    # Empty sweeping radar frame (no enemy blips).
+    # Yaw-relative mini-map: the player is at the centre and "up" is the way they face.
+    var hud: Hud
+    var enemies: Array = []
+    var pings: Array = []     # [last known Vector3, seconds left]
+    var uav_t := 0.0
     var a := 0.0
+    const RANGE_M := 45.0
+
     func _process(dt: float) -> void:
         a += dt * 2.1
+        for p in pings:
+            p[1] -= dt
+        pings = pings.filter(func(p): return p[1] > 0.0)
         queue_redraw()
+
+    func ping(p: Vector3) -> void:
+        pings.append([p, 1.6])
+        if pings.size() > 8:
+            pings.pop_front()
+
     func _draw() -> void:
         var c := size * 0.5
         var r := size.x * 0.5
+        var R := r - 10.0
         draw_circle(c, r, Color(0.04, 0.12, 0.08, 0.45))
-        draw_line(Vector2(c.x, 0), Vector2(c.x, size.y), Color(1, 1, 1, 0.22), 1.0)
-        draw_line(Vector2(0, c.y), Vector2(size.x, c.y), Color(1, 1, 1, 0.22), 1.0)
-        draw_arc(c, r * 0.5, 0.0, TAU, 32, Color(1, 1, 1, 0.3), 1.0)
+        draw_arc(c, r * 0.5, 0.0, TAU, 32, Color(1, 1, 1, 0.22), 1.0)
         var pts := PackedVector2Array([c])
         for i in 9:
             var ang := a + float(i) / 8.0
             pts.append(c + Vector2(cos(ang), sin(ang)) * (r - 2.0))
         draw_colored_polygon(pts, Color(0.35, 1.0, 0.6, 0.25))
+        var pl: Player = hud.player
+        if pl != null:
+            var yaw := pl.yaw
+            var fwd := Vector2(-sin(yaw), -cos(yaw))
+            var rt := Vector2(cos(yaw), -sin(yaw))
+            if uav_t > 0.0:
+                for p in enemies:
+                    _blip(c, R, pl.global_position, p, fwd, rt, Color(1.0, 0.3, 0.25, 1.0))
+            for pg in pings:
+                var al := clampf(float(pg[1]) / 1.6, 0.0, 1.0)
+                _blip(c, R, pl.global_position, pg[0], fwd, rt, Color(1.0, 0.35, 0.3, 0.35 + 0.65 * al))
+        draw_circle(c, 3.0, Color.WHITE)
+        if uav_t > 0.0:
+            draw_string(ThemeDB.fallback_font, Vector2(0, size.y - 6), "UAV %ds" % ceili(uav_t), HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(1, 0.7, 0))
         draw_arc(c, r - 1.0, 0.0, TAU, 48, Color(1, 1, 1, 0.75), 2.0)
+
+    # Blips outside the ring are pinned to its edge as dim dots, so they never spill out.
+    func _blip(c: Vector2, R: float, me: Vector3, p: Vector3, fwd: Vector2, rt: Vector2, col: Color) -> void:
+        var d := Vector2(p.x - me.x, p.z - me.z)
+        var v := Vector2(d.dot(rt), -d.dot(fwd)) * (R / RANGE_M)
+        if v.length() > R - 6.0:
+            v = v.normalized() * (R - 6.0)
+            draw_circle(c + v, 2.5, Color(col.r, col.g, col.b, col.a * 0.6))
+        else:
+            draw_circle(c + v, 4.5, col)
 
 class Crosshair extends Control:
     var gap := 12.0
@@ -148,6 +186,7 @@ var death: ColorRect
 var dk_lbl: Label
 var board: Label
 var dirhit: DirHit
+var radar: Radar
 var _am := 30
 var _ar := 120
 var _gn := 2
@@ -260,7 +299,9 @@ func _build_elements() -> void:
         b.label = GLYPH[id]
         _reg(id, b)
         btns[id] = b
-    _reg("radar", Radar.new())
+    radar = Radar.new()
+    radar.hud = self
+    _reg("radar", radar)
     var am := Panel.new()
     _reg("ammo", am)
     am.add_theme_stylebox_override("panel", _sb(Color(0, 0, 0, 0.4), 22))
@@ -809,3 +850,13 @@ class DirHit extends Control:
             var base := c + sd * r
             var perp := Vector2(-sd.y, sd.x) * 14.0
             draw_colored_polygon(PackedVector2Array([tip, base + perp, base - perp]), col)
+
+
+func radar_ping(p: Vector3) -> void:
+    radar.ping(p)
+
+func radar_feed(pts: Array) -> void:
+    radar.enemies = pts
+
+func set_uav(t: float) -> void:
+    radar.uav_t = t
