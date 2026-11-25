@@ -264,9 +264,11 @@ func _fire(d: float) -> void:
         wd = o.distance_to(rp)
     var tt := (c - o).dot(dir)
     var hit := tt > 0.0 and tt < wd and (o + dir * tt).distance_to(c) < 0.45
+    if not hit and not r.is_empty():
+        main.impact(r["position"], r["normal"])
     main.spawn_tracer(o, o + dir * (tt if hit else wd))
     main.play("bshot", clampf(1.0 - d / 45.0, 0.1, 0.7))
     n += 1
     cd = (0.7 + randf() * 0.5) if n % 4 == 0 else 0.16
     if hit:
-        pl.hurt(6.0)
+        pl.hurt(6.0, global_position)

@@ -145,6 +145,7 @@ var menu: ColorRect
 var death: ColorRect
 var dk_lbl: Label
 var board: Label
+var dirhit: DirHit
 var lobby: Lobby
 
 # cached values so UI nodes are only touched when something changed
@@ -242,6 +243,10 @@ func _build_overlays() -> void:
     hm.modulate.a = 0.0
     root.add_child(hm)
     hm.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    dirhit = DirHit.new()
+    dirhit.hud = self
+    root.add_child(dirhit)
+    dirhit.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 func _build_elements() -> void:
     for id in BTN_IDS:
@@ -736,3 +741,48 @@ func start_match() -> void:
 func _open_lobby() -> void:
     menu.hide()
     lobby.open()
+
+
+func dir_hit(src: Vector3) -> void:
+    dirhit.add(src)
+
+# Red triangles on a ring around the crosshair, pointing toward where damage came from.
+class DirHit extends Control:
+    var hud: Hud
+    var items: Array = []
+
+    func _ready() -> void:
+        mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+    func add(src: Vector3) -> void:
+        items.append([src, 1.3])
+        if items.size() > 4:
+            items.pop_front()
+
+    func _process(dt: float) -> void:
+        if items.is_empty():
+            return
+        for it in items:
+            it[1] -= dt
+        items = items.filter(func(it): return it[1] > 0.0)
+        queue_redraw()
+
+    func _draw() -> void:
+        var pl: Player = hud.player
+        if pl == null:
+            return
+        var c := size * 0.5
+        var r := minf(size.x, size.y) * 0.4
+        var fwd := Vector2(-sin(pl.yaw), -cos(pl.yaw))
+        for it in items:
+            var d: Vector3 = it[0] - pl.global_position
+            var dir := Vector2(d.x, d.z)
+            if dir.length() < 0.01:
+                continue
+            var a := fwd.angle_to(dir.normalized())
+            var sd := Vector2(sin(a), -cos(a))
+            var col := Color(1.0, 0.15, 0.15, clampf(it[1] / 0.4, 0.0, 1.0) * 0.9)
+            var tip := c + sd * (r + 18.0)
+            var base := c + sd * r
+            var perp := Vector2(-sd.y, sd.x) * 14.0
+            draw_colored_polygon(PackedVector2Array([tip, base + perp, base - perp]), col)

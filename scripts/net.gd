@@ -242,7 +242,7 @@ func _world_dict() -> Dictionary:
     var out := {}
     for pid in pl:
         var E: Dictionary = pl[pid]
-        out[pid] = {"n": E["n"], "p": E["p"], "y": E["y"], "pt": E["pt"], "c": E["c"], "s": E["s"], "a": E["a"], "hp": E["hp"], "k": E["k"], "d": E["d"]}
+        out[pid] = {"n": E["n"], "p": E["p"], "y": E["y"], "pt": E["pt"], "c": E["c"], "s": E["s"], "a": E["a"], "hp": E["hp"], "k": E["k"], "d": E["d"], "la": E.get("la", -1)}
     return out
 
 # Applies a world snapshot locally: updates my own HP/death/kills and the remote figures.
@@ -252,7 +252,7 @@ func _apply_world(d: Dictionary) -> void:
     for pid in d:
         var E: Dictionary = d[pid]
         if pid == my_id:
-            main.sync_local(E["hp"], E["d"], E["k"])
+            main.sync_local(E["hp"], E["d"], E["k"], E.get("la", -1))
             continue
         if not remotes.has(pid):
             _spawn_remote(pid, E["p"])
@@ -291,6 +291,7 @@ func _apply_hit(shooter: int, target: int, dmg: float) -> void:
         return
     T["hp"] = maxf(0.0, T["hp"] - clampf(dmg, 0.0, 60.0))
     T["lh"] = _now()
+    T["la"] = shooter
     if T["hp"] <= 0.0:
         T["d"] = true
         S["k"] += 1
@@ -503,7 +504,7 @@ func _tcp_poll() -> void:
                 _feed(lk, r[1])
 
 func _new_player(n: String) -> Dictionary:
-    return {"n": n, "p": Vector3.ZERO, "y": 0.0, "pt": 0.0, "c": false, "s": false, "a": false, "hp": 100.0, "k": 0, "d": false, "lh": 0.0}
+    return {"n": n, "p": Vector3.ZERO, "y": 0.0, "pt": 0.0, "c": false, "s": false, "a": false, "hp": 100.0, "k": 0, "d": false, "lh": 0.0, "la": -1}
 
 func _now() -> float:
     return Time.get_ticks_msec() / 1000.0

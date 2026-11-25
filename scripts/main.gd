@@ -26,6 +26,7 @@ func _ready() -> void:
     ArenaBuilder.build(self)
     _make_sounds()
     _make_tracers()
+    _make_impacts()
     hud = Hud.new()
     add_child(hud)
     player = Player.new()
@@ -91,7 +92,7 @@ func _on_host_lost() -> void:
     get_tree().reload_current_scene()
 
 # Called by Net with the host's authoritative values for my player.
-func sync_local(hp_v: float, dead_v: bool, k: int) -> void:
+func sync_local(hp_v: float, dead_v: bool, k: int, att: int = -1) -> void:
     if k != kills:
         kills = k
         hud.set_kills(k)
@@ -99,6 +100,8 @@ func sync_local(hp_v: float, dead_v: bool, k: int) -> void:
         return
     if hp_v < player.hp and not dead_v:
         hud.flash(0.7)
+        if att >= 0 and Net.remotes.has(att):
+            hud.dir_hit(Net.remotes[att].global_position)
     player.hp = hp_v
     if dead_v and not player.dead:
         player.dead = true
@@ -341,3 +344,74 @@ func _physics_process(dt: float) -> void:
             play("pick", 0.5)
             g.queue_free()
             pickups.remove_at(i)
+
+
+# ---------- bullet holes and sparks ----------
+var _hole_mesh: QuadMesh
+var _hole_mat: StandardMaterial3D
+var _spark_mesh: BoxMesh
+var _holes: Array[MeshInstance3D] = []
+var _hole_i := 0
+
+func _make_impacts() -> void:
+    var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+    img.fill(Color(0, 0, 0, 0))
+    for y in 64:
+        for x in 64:
+            var d := Vector2(x - 31.5, y - 31.5).length() / 31.5
+            if d < 0.5:
+                img.set_pixel(x, y, Color(0.04, 0.04, 0.04, 1.0))
+            elif d < 0.8:
+                img.set_pixel(x, y, Color(0.1, 0.1, 0.1, 0.75))
+    _hole_mat = StandardMaterial3D.new()
+    _hole_mat.albedo_texture = ImageTexture.create_from_image(img)
+    _hole_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    _hole_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+    _hole_mesh = QuadMesh.new()
+    _hole_mesh.size = Vector2(0.24, 0.24)
+    for i in 40:
+        var mi := MeshInstance3D.new()
+        mi.mesh = _hole_mesh
+        mi.material_override = _hole_mat
+        mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        mi.visible = false
+        add_child(mi)
+        _holes.append(mi)
+    var sm := StandardMaterial3D.new()
+    sm.albedo_color = Color(1.0, 0.75, 0.3)
+    sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    sm.disable_fog = true
+    _spark_mesh = BoxMesh.new()
+    _spark_mesh.size = Vector3(0.05, 0.05, 0.05)
+    _spark_mesh.material = sm
+
+# Called when a bullet hits the world: p = hit point, n = surface normal.
+func impact(p: Vector3, n: Vector3) -> void:
+    var h := _holes[_hole_i % _holes.size()]
+    _hole_i += 1
+    h.visible = true
+    var off := p + n * 0.03
+    h.global_position = off
+    h.look_at(off - n, Vector3.UP if absf(n.y) < 0.95 else Vector3.RIGHT)
+    h.rotate_object_local(Vector3(0, 0, 1), randf() * TAU)
+    h.scale = Vector3.ONE * randf_range(0.8, 1.25)
+    _spark(p, n)
+
+func _spark(p: Vector3, n: Vector3) -> void:
+    var cp := CPUParticles3D.new()
+    cp.one_shot = true
+    cp.explosiveness = 1.0
+    cp.amount = 14
+    cp.lifetime = 0.35
+    cp.direction = n
+    cp.spread = 60.0
+    cp.initial_velocity_min = 2.5
+    cp.initial_velocity_max = 5.5
+    cp.gravity = Vector3(0, -12, 0)
+    cp.scale_amount_min = 0.6
+    cp.scale_amount_max = 1.2
+    cp.mesh = _spark_mesh
+    add_child(cp)
+    cp.global_position = p + n * 0.05
+    cp.emitting = true
+    get_tree().create_timer(0.7).timeout.connect(cp.queue_free)

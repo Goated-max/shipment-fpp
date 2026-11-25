@@ -323,6 +323,8 @@ func _shoot() -> void:
         var bt: float = bh["t"]
         end = org + d * bt
         main.hit_bot(bh["bot"], bh["zone"])
+    elif not wr.is_empty():
+        main.impact(wr["position"], wr["normal"])
     main.spawn_tracer(muzzle.global_position, end)
     main.play("shot", 0.8)
     flash_mesh.visible = true
@@ -334,12 +336,14 @@ func _shoot() -> void:
     bloom = minf(1.0, bloom + 0.18)
 
 # ---------- damage / death / respawn ----------
-func hurt(dmg: float) -> void:
+func hurt(dmg: float, src := Vector3.ZERO) -> void:
     if dead:
         return
     hp -= dmg
     last_hit = t
     hud.flash(0.7)
+    if src != Vector3.ZERO:
+        hud.dir_hit(src)
     main.play("hurt", 0.8)
     recoil_p += 0.01
     if hp <= 0.0:
