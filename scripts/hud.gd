@@ -28,21 +28,79 @@ const R := 70.0
 
 # ---------- small custom-drawn widgets ----------
 class TouchBtn extends Control:
+    # Black, slightly see-through round button with a drawn icon for its action.
     var label := ""
+    var kind := ""
     var down := false
+
     func set_down(v: bool) -> void:
         if v != down:
             down = v
             queue_redraw()
+
     func _draw() -> void:
         var c := size * 0.5
-        var r := minf(size.x, size.y) * 0.5
-        draw_circle(c, r, Color(1, 0.7, 0, 0.55) if down else Color(1, 1, 1, 0.16))
-        draw_arc(c, r - 1.0, 0.0, TAU, 40, Color(1, 1, 1, 0.6), 2.0)
+        var r := minf(size.x, size.y) * 0.5 - 2.0
+        draw_circle(c, r, Color(0, 0, 0, 0.7 if down else 0.45))
+        draw_arc(c, r - 1.0, 0.0, TAU, 48, Color(1, 0.7, 0, 0.95) if down else Color(1, 1, 1, 0.3), 2.0)
+        _icon(c + Vector2(0, -r * 0.14), r * 0.42, Color(1, 1, 1, 0.95) if down else Color(1, 1, 1, 0.85))
         var f := ThemeDB.fallback_font
-        var fs := int(r * 0.4)
+        var fs := maxi(9, int(r * 0.2))
         var ts := f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
-        draw_string(f, Vector2(c.x - ts.x * 0.5, c.y + fs * 0.35), label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
+        draw_string(f, Vector2(c.x - ts.x * 0.5, c.y + r * 0.8), label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 1, 1, 0.75))
+
+    func _icon(c: Vector2, s: float, col: Color) -> void:
+        match kind:
+            "jump":
+                # up arrow
+                draw_colored_polygon(PackedVector2Array([c + Vector2(0, -s), c + Vector2(-s * 0.8, s * 0.1), c + Vector2(s * 0.8, s * 0.1)]), col)
+                draw_rect(Rect2(c.x - s * 0.3, c.y + s * 0.1, s * 0.6, s * 0.8), col)
+            "slide":
+                # low body sliding along the ground, with a forward arrow
+                draw_line(c + Vector2(-s, s * 0.75), c + Vector2(s, s * 0.75), col, 2.0)
+                draw_rect(Rect2(c.x - s * 0.8, c.y - s * 0.1, s * 1.1, s * 0.55), col)
+                draw_colored_polygon(PackedVector2Array([c + Vector2(s * 0.5, -s * 0.2), c + Vector2(s * 0.5, s * 0.5), c + Vector2(s * 1.0, s * 0.15)]), col)
+            "fire":
+                # burst: ring with four ticks
+                draw_arc(c, s * 0.5, 0.0, TAU, 24, col, 2.0)
+                for k in 4:
+                    var d := Vector2(cos(k * PI * 0.5), sin(k * PI * 0.5))
+                    draw_line(c + d * s * 0.7, c + d * s, col, 2.0)
+            "fire2":
+                # bullet
+                draw_rect(Rect2(c.x - s * 0.35, c.y - s * 0.2, s * 0.7, s * 1.1), col)
+                draw_colored_polygon(PackedVector2Array([c + Vector2(-s * 0.35, -s * 0.2), c + Vector2(s * 0.35, -s * 0.2), c + Vector2(0, -s * 0.9)]), col)
+            "ads":
+                # scope
+                draw_arc(c, s * 0.8, 0.0, TAU, 32, col, 2.0)
+                draw_line(c + Vector2(-s * 0.8, 0), c + Vector2(-s * 0.3, 0), col, 2.0)
+                draw_line(c + Vector2(s * 0.3, 0), c + Vector2(s * 0.8, 0), col, 2.0)
+                draw_line(c + Vector2(0, -s * 0.8), c + Vector2(0, -s * 0.3), col, 2.0)
+                draw_line(c + Vector2(0, s * 0.3), c + Vector2(0, s * 0.8), col, 2.0)
+                draw_circle(c, s * 0.1, col)
+            "reload":
+                # circular arrow
+                var a1 := PI * 1.3
+                draw_arc(c, s * 0.75, -PI * 0.2, a1, 32, col, 2.5)
+                _head(c + Vector2(cos(a1), sin(a1)) * s * 0.75, Vector2(-sin(a1), cos(a1)), s, col)
+            "gren":
+                # grenade with pin
+                draw_circle(c + Vector2(0, s * 0.15), s * 0.7, col)
+                draw_rect(Rect2(c.x - s * 0.25, c.y - s * 0.95, s * 0.5, s * 0.35), col)
+                draw_line(c + Vector2(s * 0.3, -s * 0.6), c + Vector2(s * 0.85, -s * 0.95), col, 2.0)
+            "swap":
+                # two arcs with arrowheads, pointing opposite ways
+                var t1 := PI * 0.9
+                var t2 := PI * 1.9
+                draw_arc(c, s * 0.7, PI * 0.1, t1, 24, col, 2.5)
+                draw_arc(c, s * 0.7, PI * 1.1, t2, 24, col, 2.5)
+                _head(c + Vector2(cos(t1), sin(t1)) * s * 0.7, Vector2(-sin(t1), cos(t1)), s, col)
+                _head(c + Vector2(cos(t2), sin(t2)) * s * 0.7, Vector2(-sin(t2), cos(t2)), s, col)
+
+    # Small triangle at the end of an arc. p = tip position, d = direction of travel.
+    func _head(p: Vector2, d: Vector2, s: float, col: Color) -> void:
+        var n := Vector2(-d.y, d.x)
+        draw_colored_polygon(PackedVector2Array([p + d * s * 0.35, p - d * s * 0.2 + n * s * 0.3, p - d * s * 0.2 - n * s * 0.3]), col)
 
 class Radar extends Control:
     # Yaw-relative mini-map: the player is at the centre and "up" is the way they face.
@@ -297,6 +355,7 @@ func _build_elements() -> void:
     for id in BTN_IDS:
         var b := TouchBtn.new()
         b.label = GLYPH[id]
+        b.kind = id
         _reg(id, b)
         btns[id] = b
     radar = Radar.new()
