@@ -27,6 +27,9 @@ func _ready() -> void:
     _make_sounds()
     _make_tracers()
     _make_impacts()
+    mui = MatchUI.new()
+    mui.main = self
+    add_child(mui)
     hud = Hud.new()
     add_child(hud)
     player = Player.new()
@@ -107,6 +110,7 @@ func sync_local(hp_v: float, dead_v: bool, k: int, att: int = -1) -> void:
         player.dead = true
         player.hp = 0.0
         hud.show_death(k)
+        on_player_death()
     elif not dead_v and player.dead:
         player.respawn()
 
@@ -127,6 +131,7 @@ func _make_sounds() -> void:
         "pick": Sfx.make(500.0, 1100.0, 0.12, 0.0, 0.4),
         "hurt": Sfx.make(110.0, 60.0, 0.18, 0.4, 0.6),
         "bshot": Sfx.make(130.0, 50.0, 0.09, 0.6, 0.4),
+        "boom": Sfx.make(90.0, 25.0, 0.7, 0.8, 0.9),
     }
     for i in 8:
         var ap := AudioStreamPlayer.new()
@@ -189,25 +194,13 @@ func bot_ray(o: Vector3, d: Vector3, maxt: float) -> Dictionary:
                 best = {"bot": rp, "zone": r2["zone"], "t": bt}
     return best
 
-func hit_bot(b, zone: String) -> void:
+func hit_bot(b, zone: String, mult := 1.0) -> void:
     if b is RemotePlayer:
         hud.hitmark(zone == "head")
         play("hitm", 0.8)
         Net.request_hit(b.pid, zone)
         return
-    var head := zone == "head"
-    b.hp -= (48.0 if head else 24.0)
-    if b.hp <= 0.0:
-        b.die()
-        kills += 1
-        hud.set_kills(kills)
-        drop_at(b.global_position)
-        hud.hitmark(true)
-        play("kill")
-    else:
-        hud.hitmark(head)
-        play("hitm", 0.8)
-        b.alert()
+    damage_bot(b, (48.0 if zone == "head" else 24.0) * mult, zone == "head")
 
 func spawn_point(me) -> Vector2:
     var pp := Vector2(0, 28)
@@ -272,6 +265,7 @@ func spawn_tracer(a: Vector3, b: Vector3) -> void:
     tr["life"] = 0.06
 
 func _process(dt: float) -> void:
+    _match_tick(dt)
     for tr in tracers:
         var life: float = tr["life"]
         if life > 0.0:
@@ -337,8 +331,7 @@ func _physics_process(dt: float) -> void:
             g.queue_free()
             pickups.remove_at(i)
         elif Vector2(pp.x - g.position.x, pp.z - g.position.z).length() < 1.6 and absf(pp.y - y0) < 1.8:
-            var got := maxi(0, mini(30, 180 - player.reserve))
-            player.reserve += got
+            var got: int = player.ammo_pickup()
             hud.set_ammo(player.mag, player.reserve)
             hud.pick("+%d AMMO" % got if got > 0 else "AMMO FULL")
             play("pick", 0.5)
@@ -415,3 +408,134 @@ func _spark(p: Vector3, n: Vector3) -> void:
     cp.global_position = p + n * 0.05
     cp.emitting = true
     get_tree().create_timer(0.7).timeout.connect(cp.queue_free)
+
+
+# ---------- match: timer, kill goal, score, deaths, summary (offline practice) ----------
+const MATCH_TIME := 180.0
+const KILL_GOAL := 20
+var mui: MatchUI
+var score := 0
+var deaths := 0
+var headshots := 0
+var match_t := MATCH_TIME
+var match_started := false
+var match_over := false
+
+func _match_tick(dt: float) -> void:
+    if Net.active or get_tree().paused:
+        return
+    if not match_started:
+        match_started = true
+        match_t = MATCH_TIME
+    if match_over:
+        return
+    match_t = maxf(0.0, match_t - dt)
+    mui.set_timer(match_t, kills, KILL_GOAL)
+    if match_t <= 0.0:
+        end_match("TIME UP")
+
+func end_match(reason: String) -> void:
+    if match_over:
+        return
+    match_over = true
+    hud._clear_input()
+    var secs := int(MATCH_TIME - match_t)
+    mui.show_summary(reason, kills, deaths, headshots, score, "%d:%02d" % [secs / 60, secs % 60])
+    get_tree().paused = true
+
+func reset_match() -> void:
+    mui.hide_summary()
+    mui.clear_feed()
+    for g in get_tree().get_nodes_in_group("grenade"):
+        g.queue_free()
+    for k in pickups:
+        (k["node"] as Node3D).queue_free()
+    pickups.clear()
+    kills = 0
+    deaths = 0
+    headshots = 0
+    score = 0
+    hud.set_kills(0)
+    for b in bots:
+        b.spawn(spawn_point(b))
+    player.respawn()
+    match_t = MATCH_TIME
+    match_over = false
+    get_tree().paused = false
+
+func on_player_death() -> void:
+    deaths += 1
+    mui.feed("YOU WERE ELIMINATED", Color(1, 0.35, 0.35))
+
+# Killfeed for networked kills (names come from the host's player table).
+func net_kill_feed(a: int, v: int) -> void:
+    var na: String = "P%d" % a
+    var nv: String = "P%d" % v
+    if Net.pl.has(a):
+        na = Net.pl[a]["n"]
+    if Net.pl.has(v):
+        nv = Net.pl[v]["n"]
+    mui.feed("%s  >  %s" % [na, nv], Color(1, 0.8, 0.3) if a == Net.my_id else Color(0.85, 0.85, 0.85))
+
+# Single place for bot damage: handles kills, score, killfeed and popups.
+func damage_bot(b, amount: float, head: bool) -> void:
+    if not b.alive:
+        return
+    b.hp -= amount
+    if b.hp <= 0.0:
+        b.die()
+        kills += 1
+        score += 150 if head else 100
+        if head:
+            headshots += 1
+        hud.set_kills(kills)
+        drop_at(b.global_position)
+        hud.hitmark(true)
+        play("kill")
+        var nm := "BOT %d" % (bots.find(b) + 1)
+        mui.feed("YOU  >  %s%s" % [nm, "   HEADSHOT" if head else ""], Color(1, 0.8, 0.3))
+        mui.popup("HEADSHOT +150" if head else "ELIMINATED +100")
+        if kills >= KILL_GOAL:
+            end_match("GOAL REACHED")
+    else:
+        hud.hitmark(head)
+        play("hitm", 0.8)
+        b.alert()
+
+# Grenade blast: damages bots by distance, hurts the thrower if close, plus visuals and sound.
+func explode(p: Vector3, radius: float, dmg: float, self_r: float, self_dmg: float) -> void:
+    for b in bots:
+        if not b.alive:
+            continue
+        var d: float = b.global_position.distance_to(p + Vector3(0, 0.9, 0))
+        if d < radius:
+            damage_bot(b, dmg * (1.0 - d / radius), false)
+    var pd: float = player.global_position.distance_to(p + Vector3(0, 0.9, 0))
+    if pd < self_r and not player.dead:
+        player.hurt(self_dmg * (1.0 - pd / self_r), p)
+    _boom(p)
+    for i in 3:
+        _spark(p, Vector3(randf() - 0.5, 1.0, randf() - 0.5).normalized())
+    player.shake(0.3 * clampf(1.0 - pd / 14.0, 0.0, 1.0))
+    play("boom", 0.9)
+
+func _boom(p: Vector3) -> void:
+    var ex := MeshInstance3D.new()
+    var sm := SphereMesh.new()
+    sm.radius = 1.0
+    sm.height = 2.0
+    var m := StandardMaterial3D.new()
+    m.albedo_color = Color(1.0, 0.55, 0.15)
+    m.emission_enabled = true
+    m.emission = Color(1.0, 0.5, 0.1)
+    m.emission_energy_multiplier = 2.0
+    m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    sm.material = m
+    ex.mesh = sm
+    ex.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    add_child(ex)
+    ex.global_position = p
+    ex.scale = Vector3.ONE * 0.2
+    var tw := ex.create_tween()
+    tw.tween_property(ex, "scale", Vector3.ONE * 5.0, 0.18)
+    tw.tween_callback(ex.queue_free)

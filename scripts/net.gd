@@ -340,6 +340,7 @@ func _on_kill(a: int, _v: int, p: Vector3) -> void:
     main.drop_at(p)
     if a == my_id:
         main.on_my_kill()
+    main.net_kill_feed(a, _v)
 
 # ---------- messages ----------
 func _on_msg(link: int, m: Dictionary) -> void:

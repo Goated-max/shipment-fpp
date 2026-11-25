@@ -3,10 +3,10 @@ extends CanvasLayer
 
 signal respawn_requested
 
-const IDS := ["jump", "slide", "fire", "fire2", "ads", "reload", "radar", "ammo", "hpw", "kills", "stance"]
-const BTN_IDS := ["jump", "slide", "fire", "fire2", "ads", "reload"]
-const NAMES := {"jump": "JUMP", "slide": "SLIDE", "fire": "FIRE", "fire2": "FIRE 2", "ads": "ADS", "reload": "RELOAD", "radar": "RADAR", "ammo": "AMMO", "hpw": "HEALTH", "kills": "KILLS", "stance": "STANCE"}
-const GLYPH := {"jump": "JUMP", "slide": "SLIDE", "fire": "FIRE", "fire2": "FIRE", "ads": "ADS", "reload": "RLD"}
+const IDS := ["jump", "slide", "fire", "fire2", "ads", "reload", "gren", "swap", "radar", "ammo", "hpw", "kills", "stance"]
+const BTN_IDS := ["jump", "slide", "fire", "fire2", "ads", "reload", "gren", "swap"]
+const NAMES := {"jump": "JUMP", "slide": "SLIDE", "fire": "FIRE", "fire2": "FIRE 2", "ads": "ADS", "reload": "RELOAD", "radar": "RADAR", "ammo": "AMMO", "hpw": "HEALTH", "kills": "KILLS", "stance": "STANCE", "gren": "GRENADE", "swap": "SWAP"}
+const GLYPH := {"jump": "JUMP", "slide": "SLIDE", "fire": "FIRE", "fire2": "FIRE", "ads": "ADS", "reload": "RLD", "gren": "GREN", "swap": "SWAP"}
 # id: [width, height, x-anchor (l/r/c), x-offset, y-anchor (t/b/c), y-offset]
 const DEF := {
     "radar": [150, 150, "l", 20, "t", 20],
@@ -16,10 +16,12 @@ const DEF := {
     "reload": [80, 80, "r", 36, "b", 290],
     "jump": [100, 100, "r", 36, "b", 150],
     "slide": [100, 100, "r", 160, "b", 70],
-    "ammo": [190, 44, "r", 30, "b", 10],
+    "ammo": [290, 44, "r", 30, "b", 10],
     "hpw": [240, 28, "c", 0, "t", 46],
     "kills": [200, 30, "c", 0, "t", 10],
     "stance": [140, 30, "c", 0, "b", 16],
+    "gren": [84, 84, "l", 36, "b", 150],
+    "swap": [76, 76, "l", 140, "b", 150],
 }
 const LAYOUT_PATH := "user://hud_layout.cfg"
 const R := 70.0
@@ -103,7 +105,7 @@ var hp := 100.0
 var stance := "STAND"
 var xh_gap := 12.0
 var xh_alpha := 1.0
-var ev := {"jump": false, "slide": false, "ads": false, "reload": false}
+var ev := {"jump": false, "slide": false, "ads": false, "reload": false, "gren": false, "swap": false, "w1": false, "w2": false}
 
 var root: Control
 var els := {}
@@ -146,6 +148,10 @@ var death: ColorRect
 var dk_lbl: Label
 var board: Label
 var dirhit: DirHit
+var _am := 30
+var _ar := 120
+var _gn := 2
+var _wn := "AR"
 var lobby: Lobby
 
 # cached values so UI nodes are only touched when something changed
@@ -439,7 +445,7 @@ func _apply_all() -> void:
     edit_btn.position = Vector2(vp.x - 122.0, 10.0)
     panel.position = Vector2(vp.x - 280.0, 56.0)
     pick_lbl.position = Vector2(vp.x * 0.5 - 120.0, vp.y * 0.62)
-    board.position = Vector2(vp.x - 260.0, 100.0)
+    board.position = Vector2(vp.x - 260.0, 200.0)
 
 func _load_layout() -> void:
     var cf := ConfigFile.new()
@@ -525,7 +531,20 @@ func take(k: String) -> bool:
     return v
 
 func set_ammo(m: int, r: int) -> void:
-    ammo_lbl.text = "%d / %d" % [m, r]
+    _am = m
+    _ar = r
+    _refresh_ammo()
+
+func set_grenades(n: int) -> void:
+    _gn = n
+    _refresh_ammo()
+
+func set_weapon(n: String) -> void:
+    _wn = n
+    _refresh_ammo()
+
+func _refresh_ammo() -> void:
+    ammo_lbl.text = "%s   %d / %d   G%d" % [_wn, _am, _ar, _gn]
 
 func set_kills(k: int) -> void:
     kills_lbl.text = "KILLS %d" % k
@@ -596,6 +615,10 @@ func _input(e: InputEvent) -> void:
             KEY_SPACE: ev["jump"] = true
             KEY_C, KEY_CTRL: ev["slide"] = true
             KEY_R: ev["reload"] = true
+            KEY_Q: ev["swap"] = true
+            KEY_G: ev["gren"] = true
+            KEY_1: ev["w1"] = true
+            KEY_2: ev["w2"] = true
 
 func _press(id: String, on: bool) -> void:
     (btns[id] as TouchBtn).set_down(on)

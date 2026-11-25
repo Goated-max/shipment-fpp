@@ -8,6 +8,11 @@ const GRAV := 28.0
 const JUMP_V := 9.0
 const SLIDE_T := 0.95
 const SLIDE_V := 11.5
+const MAX_GREN := 2
+const WEAPONS := {
+    "rifle": {"name": "AR", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
+    "pistol": {"name": "PISTOL", "mag": 12, "max": 60, "rate": 0.2, "auto": false, "spread": 0.008, "dmg": 1.2, "hip": Vector3(0.17, -0.14, -0.38), "ads": Vector3(0.0, -0.09, -0.2)},
+}
 
 var main: Main
 var hud: Hud
@@ -47,6 +52,14 @@ var shots := 0
 var idle := 9.0
 var bloom := 0.0
 var flash_t := 0.0
+var cur := "rifle"
+var slots := {"rifle": {"mag": 30, "res": 120}, "pistol": {"mag": 12, "res": 60}}
+var swap_t := 0.0
+var swap_to := ""
+var grenades := MAX_GREN
+var gren_cd := 0.0
+var was_firing := false
+var shake_amt := 0.0
 
 func _ready() -> void:
     collision_layer = 0
@@ -94,6 +107,9 @@ func _box(par: Node3D, sz: Vector3, pos: Vector3, m: Material) -> MeshInstance3D
 func _build_gun() -> void:
     gun = Node3D.new()
     cam.add_child(gun)
+    _build_rifle_model()
+
+func _build_rifle_model() -> void:
     var gm := _mat(Color(0.19, 0.2, 0.23))
     var pl := _mat(Color(0.09, 0.1, 0.11))
     var tanm := _mat(Color(0.72, 0.6, 0.38))
@@ -210,6 +226,13 @@ func _physics_process(dt: float) -> void:
         hp = minf(100.0, hp + 25.0 * dt)
     hud.hp = hp
     hud.stance = _stance()
+    if shake_amt > 0.001:
+        cam.h_offset = randf_range(-1.0, 1.0) * shake_amt
+        cam.v_offset = randf_range(-1.0, 1.0) * shake_amt
+        shake_amt = lerpf(shake_amt, 0.0, 1.0 - exp(-10.0 * dt))
+    elif cam.h_offset != 0.0:
+        cam.h_offset = 0.0
+        cam.v_offset = 0.0
 
 func _stance() -> String:
     if slide_t > 0.0:
@@ -224,11 +247,11 @@ func _spread() -> float:
     var sp := minf(1.0, Vector2(velocity.x, velocity.z).length() / SPRINT) * 0.012
     var air := 0.0 if is_on_floor() else 0.03
     var c := 0.005 if crouch else 0.0
-    return (0.012 + sp + air + bloom * 0.03 - c) * (1.0 - 0.92 * ads_t)
+    return (float(WEAPONS[cur]["spread"]) + sp + air + bloom * 0.03 - c) * (1.0 - 0.92 * ads_t)
 
 # ---------- weapon ----------
 func _start_reload() -> void:
-    if reloading or mag >= 30 or reserve <= 0:
+    if reloading or mag >= int(WEAPONS[cur]["mag"]) or reserve <= 0:
         return
     reloading = true
     reload_t = 0.0
@@ -242,6 +265,14 @@ func _weapon(dt: float, sliding: bool) -> void:
             hud.lock = false
     if hud.take("reload"):
         _start_reload()
+    if hud.take("swap"):
+        _swap_to("pistol" if cur == "rifle" else "rifle")
+    if hud.take("w1"):
+        _swap_to("rifle")
+    if hud.take("w2"):
+        _swap_to("pistol")
+    if hud.take("gren"):
+        _throw_grenade()
     if (sprint and not was_sprint) or reloading:
         ads = false
     was_sprint = sprint
@@ -249,6 +280,7 @@ func _weapon(dt: float, sliding: bool) -> void:
     if firing and not reloading and not sprint:
         ads = true
     cd -= dt
+    gren_cd -= dt
     idle += dt
     if idle > 0.1:
         recoil_p = lerpf(recoil_p, 0.0, 1.0 - exp(-6.0 * dt))
@@ -258,14 +290,24 @@ func _weapon(dt: float, sliding: bool) -> void:
     ads_t = lerpf(ads_t, 1.0 if ads else 0.0, 1.0 - exp(-12.0 * dt))
     var use_s := sprint and is_on_floor() and not firing and idle > 0.25 and not reloading and not ads
     sp_t = lerpf(sp_t, 1.0 if use_s else 0.0, 1.0 - exp(-(9.0 if use_s else 30.0) * dt))
+    var sw_off := 0.0
+    if swap_t > 0.0:
+        swap_t = minf(1.0, swap_t + dt / 0.38)
+        sw_off = sin(swap_t * PI) * 0.5
+        if swap_t >= 0.5 and swap_to != "":
+            _do_swap_switch()
+        if swap_t >= 1.0:
+            swap_t = 0.0
     var a := ads_t
-    var x := lerpf(lerpf(0.2, 0.12, sp_t), 0.0, a)
-    var y := lerpf(lerpf(-0.16, -0.2, sp_t), -0.1, a)
-    var z := lerpf(lerpf(-0.5, -0.42, sp_t), -0.21, a)
+    var hip: Vector3 = WEAPONS[cur]["hip"]
+    var adsp: Vector3 = WEAPONS[cur]["ads"]
+    var x := lerpf(lerpf(hip.x, hip.x - 0.08, sp_t), adsp.x, a)
+    var y := lerpf(lerpf(hip.y, hip.y - 0.04, sp_t), adsp.y, a)
+    var z := lerpf(lerpf(hip.z, hip.z + 0.08, sp_t), adsp.z, a)
     var rx := 0.45 * sp_t * (1.0 - a)
     var ry := -0.5 * sp_t * (1.0 - a)
     var rz := 0.0
-    y += sin(t * 1.4) * 0.002
+    y += sin(t * 1.4) * 0.002 - sw_off
     kick = lerpf(kick, 0.0, 1.0 - exp(-20.0 * dt))
     z += kick * 0.045 * (1.0 - 0.5 * a)
     rx += kick * 0.035
@@ -278,7 +320,7 @@ func _weapon(dt: float, sliding: bool) -> void:
         reload_t += dt
         rw = clampf(minf(reload_t / 0.3, (2.0 - reload_t) / 0.25), 0.0, 1.0)
         if reload_t >= 2.0:
-            var n := mini(30 - mag, reserve)
+            var n := mini(int(WEAPONS[cur]["mag"]) - mag, reserve)
             mag += n
             reserve -= n
             reloading = false
@@ -290,7 +332,9 @@ func _weapon(dt: float, sliding: bool) -> void:
     rx -= 0.15 * rw
     gun.position = Vector3(x, y, z)
     gun.rotation = Vector3(rx, ry, rz)
-    if firing and not reloading and cd <= 0.0:
+    var fire_now: bool = firing and (bool(WEAPONS[cur]["auto"]) or not was_firing)
+    was_firing = firing
+    if fire_now and not reloading and cd <= 0.0 and swap_t <= 0.0:
         if mag > 0:
             _shoot()
         else:
@@ -305,7 +349,7 @@ func _weapon(dt: float, sliding: bool) -> void:
 
 func _shoot() -> void:
     mag -= 1
-    cd = 0.085
+    cd = float(WEAPONS[cur]["rate"])
     shots += 1
     idle = 0.0
     hud.set_ammo(mag, reserve)
@@ -322,7 +366,7 @@ func _shoot() -> void:
     if not bh.is_empty():
         var bt: float = bh["t"]
         end = org + d * bt
-        main.hit_bot(bh["bot"], bh["zone"])
+        main.hit_bot(bh["bot"], bh["zone"], float(WEAPONS[cur]["dmg"]))
     elif not wr.is_empty():
         main.impact(wr["position"], wr["normal"])
     main.spawn_tracer(muzzle.global_position, end)
@@ -351,6 +395,7 @@ func hurt(dmg: float, src := Vector3.ZERO) -> void:
         hud.hp = 0.0
         dead = true
         hud.show_death(main.kills)
+        main.on_player_death()
 
 func respawn() -> void:
     var s: Vector2 = main.spawn_point(null)
@@ -366,8 +411,7 @@ func respawn() -> void:
     eye = 1.7
     hp = 100.0
     last_hit = t
-    mag = 30
-    reserve = 120
+    _reset_slots()
     reloading = false
     ads = false
     ads_t = 0.0
@@ -376,3 +420,98 @@ func respawn() -> void:
     hud.lock = false
     hud.flash(1.0)
     hud.set_ammo(mag, reserve)
+
+
+# ---------- weapons: swap, grenades, ammo pickups, screen shake ----------
+func _clear_model() -> void:
+    for c in gun.get_children():
+        gun.remove_child(c)
+        c.queue_free()
+
+func _build_model(id: String) -> void:
+    if id == "pistol":
+        _build_pistol_model()
+    else:
+        _build_rifle_model()
+
+func _build_pistol_model() -> void:
+    var gm := _mat(Color(0.19, 0.2, 0.23))
+    var pl := _mat(Color(0.09, 0.1, 0.11))
+    var glove := _mat(Color(0.09, 0.1, 0.12))
+    var sleeve := _mat(Color(0.27, 0.33, 0.18))
+    _box(gun, Vector3(0.05, 0.065, 0.2), Vector3(0, 0.02, -0.2), gm)
+    _box(gun, Vector3(0.048, 0.085, 0.07), Vector3(0, -0.035, -0.17), pl)
+    _box(gun, Vector3(0.012, 0.014, 0.1), Vector3(0, 0.07, -0.12), gm)
+    _box(gun, Vector3(0.044, 0.14, 0.06), Vector3(0, -0.11, -0.05), pl)
+    _box(gun, Vector3(0.12, 0.1, 0.12), Vector3(-0.02, -0.12, 0.02), glove)
+    _box(gun, Vector3(0.1, 0.1, 0.3), Vector3(-0.07, -0.2, 0.2), sleeve)
+    muzzle = Marker3D.new()
+    muzzle.position = Vector3(0, 0.02, -0.33)
+    gun.add_child(muzzle)
+    flash_mesh = MeshInstance3D.new()
+    var sm := SphereMesh.new()
+    sm.radius = 0.05
+    sm.height = 0.1
+    flash_mesh.mesh = sm
+    flash_mesh.material_override = _mat(Color(1, 0.75, 0.3), true)
+    flash_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    flash_mesh.visible = false
+    muzzle.add_child(flash_mesh)
+
+func _swap_to(id: String) -> void:
+    if id == cur or swap_t > 0.0 or dead:
+        return
+    swap_to = id
+    swap_t = 0.0001
+    reloading = false
+    ads = false
+
+func _do_swap_switch() -> void:
+    slots[cur] = {"mag": mag, "res": reserve}
+    cur = swap_to
+    swap_to = ""
+    mag = int(slots[cur]["mag"])
+    reserve = int(slots[cur]["res"])
+    _clear_model()
+    _build_model(cur)
+    hud.set_weapon(WEAPONS[cur]["name"])
+    hud.set_ammo(mag, reserve)
+
+func _reset_slots() -> void:
+    swap_t = 0.0
+    swap_to = ""
+    slots = {"rifle": {"mag": 30, "res": 120}, "pistol": {"mag": 12, "res": 60}}
+    if cur != "rifle":
+        cur = "rifle"
+        _clear_model()
+        _build_rifle_model()
+    mag = 30
+    reserve = 120
+    reloading = false
+    gren_cd = 0.0
+    grenades = MAX_GREN
+    hud.set_weapon(WEAPONS[cur]["name"])
+    hud.set_grenades(grenades)
+    hud.set_ammo(mag, reserve)
+
+func _throw_grenade() -> void:
+    if grenades <= 0 or gren_cd > 0.0 or dead or swap_t > 0.0:
+        return
+    grenades -= 1
+    gren_cd = 1.2
+    hud.set_grenades(grenades)
+    var dir := -cam.global_transform.basis.z
+    var g := Grenade.new()
+    g.main = main
+    main.add_child(g)
+    g.launch(cam.global_position + dir * 0.6, dir * 15.0 + Vector3(0, 4.0, 0) + velocity * 0.4)
+
+# Adds up to 30 rounds to the active weapon's reserve; returns how many were added.
+func ammo_pickup() -> int:
+    var mx: int = WEAPONS[cur]["max"]
+    var got: int = maxi(0, mini(30, mx - reserve))
+    reserve += got
+    return got
+
+func shake(a: float) -> void:
+    shake_amt = maxf(shake_amt, a)
