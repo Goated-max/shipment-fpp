@@ -24,6 +24,7 @@ var bt: Object = null
 var backend := ""            # "bt" or "tcp"
 var active := false
 var in_match := false
+var map_id := "shipment"
 var is_host := false
 var my_id := 0
 var my_name := "PLAYER"
@@ -137,7 +138,8 @@ func start_match() -> void:
     in_match = true
     _end_t = 0.0
     _reset_scores()
-    _bcast({"k": "start"})
+    map_id = "desert" if randf() < 0.5 else "shipment"
+    _bcast({"k": "start", "map": map_id})
     started.emit()
 
 func reset() -> void:
@@ -376,6 +378,7 @@ func _on_msg(link: int, m: Dictionary) -> void:
                 lobby_changed.emit(m.get("names", []))
             "start":
                 in_match = true
+                map_id = String(m.get("map", "shipment"))
                 status.emit("Match started!")
                 started.emit()
             "world":

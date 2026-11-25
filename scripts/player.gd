@@ -411,7 +411,7 @@ func hurt(dmg: float, src := Vector3.ZERO) -> void:
 func respawn() -> void:
     var s: Vector2 = main.spawn_point(null)
     dead = false
-    position = Vector3(s.x, 0.2, s.y)
+    position = Vector3(s.x, main.ground_height(s.x, s.y) + 0.2, s.y)
     velocity = Vector3.ZERO
     yaw = atan2(s.x, s.y)
     pitch = 0.0

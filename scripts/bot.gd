@@ -96,11 +96,7 @@ func _part(par: Node3D, sz: Vector3, pos: Vector3, m: Material, shadow: bool) ->
     par.add_child(mi)
 
 func spawn(s: Vector2) -> void:
-    var r: Dictionary = main.world_ray(Vector3(s.x, 10, s.y), Vector3(s.x, -5, s.y))
-    var y := 0.0
-    if not r.is_empty():
-        var hp3: Vector3 = r["position"]
-        y = hp3.y
+    var y: float = main.ground_height(s.x, s.y)
     global_position = Vector3(s.x, y + 0.05, s.y)
     velocity = Vector3.ZERO
     hp = 96.0
@@ -120,7 +116,7 @@ func _pick_wp() -> void:
     var tries := 0
     while tries < 6:
         tries += 1
-        tgt = main.SPAWNS[randi() % main.SPAWNS.size()]
+        tgt = main.active_patrol[randi() % main.active_patrol.size()]
         if tgt.distance_to(Vector2(global_position.x, global_position.z)) > 8.0:
             return
 

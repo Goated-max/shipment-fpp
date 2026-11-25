@@ -4,6 +4,7 @@ extends CanvasLayer
 
 var main: Main
 var timer_lbl: Label
+var callout_lbl: Label
 var feed_box: VBoxContainer
 var popup_lbl: Label
 var popup_t := 0.0
@@ -21,6 +22,8 @@ func _ready() -> void:
 
     timer_lbl = _label(root, HORIZONTAL_ALIGNMENT_CENTER, 20, Color(1, 1, 1, 0.9))
     _place(timer_lbl, [0.5, 0.0, 0.5, 0.0], [-170, 80, 170, 112])
+    callout_lbl = _label(root, HORIZONTAL_ALIGNMENT_CENTER, 16, Color(1, 0.85, 0.5, 0.95))
+    _place(callout_lbl, [0.5, 0.0, 0.5, 0.0], [-170, 114, 170, 136])
 
     feed_box = VBoxContainer.new()
     feed_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -122,3 +125,7 @@ func _process(dt: float) -> void:
     if popup_t > 0.0:
         popup_t -= dt
         popup_lbl.modulate.a = clampf(popup_t / 0.4, 0.0, 1.0)
+
+
+func set_callout(t: String) -> void:
+    callout_lbl.text = t

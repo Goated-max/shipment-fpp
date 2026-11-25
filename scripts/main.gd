@@ -23,7 +23,7 @@ var drop_res := {}
 func _ready() -> void:
     Net.main = self
     _env()
-    ArenaBuilder.build(self)
+    _load_map(pick_map_id())
     _make_sounds()
     _make_tracers()
     _make_impacts()
@@ -36,7 +36,7 @@ func _ready() -> void:
     player.main = self
     player.hud = hud
     add_child(player)
-    player.position = Vector3(0, 0.2, 28)
+    player.position = start_position()
     hud.player = player
     hud.respawn_requested.connect(_on_respawn)
     Net.started.connect(start_mp)
@@ -62,9 +62,11 @@ func _env() -> void:
     env.fog_light_color = Color(0.91, 0.85, 0.71)
     env.fog_density = 0.011
     var we := WorldEnvironment.new()
+    world_env = we
     we.environment = env
     add_child(we)
     var sun := DirectionalLight3D.new()
+    main_sun = sun
     sun.rotation_degrees = Vector3(-55, 35, 0)
     sun.light_energy = 1.2
     sun.light_color = Color(1, 0.89, 0.7)
@@ -77,6 +79,7 @@ func start_mp() -> void:
     for b in bots:
         b.queue_free()
     bots.clear()
+    _load_map(Net.map_id)
     kills = 0
     hud.set_kills(0)
     player.respawn()
@@ -219,10 +222,10 @@ func spawn_point(me) -> Vector2:
         var r: RemotePlayer = Net.remotes[pid]
         if r.alive:
             others.append(Vector2(r.global_position.x, r.global_position.z))
-    var best := SPAWNS[0]
+    var best: Vector2 = active_spawns[0]
     var bd := -1.0
     var pts: Array[Vector2] = []
-    pts.append_array(SPAWNS)
+    pts.append_array(active_spawns)
     pts.shuffle()
     for s in pts:
         var dp := s.distance_to(pp)
@@ -272,6 +275,7 @@ func spawn_tracer(a: Vector3, b: Vector3) -> void:
 func _process(dt: float) -> void:
     _match_tick(dt)
     _uav_tick(dt)
+    _callout_tick()
     for tr in tracers:
         var life: float = tr["life"]
         if life > 0.0:
@@ -467,6 +471,7 @@ func reset_match() -> void:
     uav_t = 0.0
     hud.set_uav(0.0)
     hud.set_kills(0)
+    _load_map(pick_map_id())
     for b in bots:
         b.spawn(spawn_point(b))
     player.respawn()
@@ -598,3 +603,80 @@ func _enemy_points() -> Array:
         if r.alive:
             out.append(r.global_position)
     return out
+
+
+# ---------- maps: Shipment arena or Desert Foundry, picked at random ----------
+var map_root: Node3D
+var map_id := "shipment"
+var active_spawns: Array[Vector2] = []
+var active_patrol: Array[Vector2] = []
+var world_env: WorldEnvironment
+var main_sun: DirectionalLight3D
+
+func pick_map_id() -> String:
+    return "desert" if randf() < 0.5 else "shipment"
+
+func _load_map(id: String) -> void:
+    if map_root != null:
+        remove_child(map_root)
+        map_root.free()
+    map_id = id
+    active_spawns.clear()
+    active_patrol.clear()
+    if id == "desert":
+        var d := DesertFoundryBuilder.new()
+        map_root = d
+        add_child(d)
+        active_spawns.append_array(DesertFoundryBuilder.SPAWN_POINTS)
+        active_patrol.append_array(DesertFoundryBuilder.PATROL_WAYPOINTS)
+    else:
+        map_root = Node3D.new()
+        add_child(map_root)
+        ArenaBuilder.build(map_root)
+        active_spawns.append_array(SPAWNS)
+        active_patrol.append_array(SPAWNS)
+    _apply_lighting(id)
+    if mui != null:
+        mui.popup(DesertFoundryBuilder.MAP_NAME if id == "desert" else "SHIPMENT")
+
+# Warm sun-baked light for the desert; the original blue daylight for Shipment.
+func _apply_lighting(id: String) -> void:
+    if world_env == null or main_sun == null:
+        return
+    var e: Environment = world_env.environment
+    if id == "desert":
+        e.background_color = Color(0.86, 0.72, 0.52)
+        e.ambient_light_color = Color(0.95, 0.85, 0.70)
+        e.fog_light_color = Color(0.95, 0.82, 0.62)
+        e.fog_density = 0.006
+        main_sun.light_color = Color(1.0, 0.86, 0.62)
+        main_sun.light_energy = 1.5
+        main_sun.rotation_degrees = Vector3(-48, 28, 0)
+    else:
+        e.background_color = Color(0.29, 0.66, 1.0)
+        e.ambient_light_color = Color(0.82, 0.86, 0.95)
+        e.fog_light_color = Color(0.91, 0.85, 0.71)
+        e.fog_density = 0.011
+        main_sun.light_color = Color(1, 0.89, 0.7)
+        main_sun.light_energy = 1.2
+        main_sun.rotation_degrees = Vector3(-55, 35, 0)
+
+func start_position() -> Vector3:
+    if map_id == "desert" and not active_spawns.is_empty():
+        var s: Vector2 = active_spawns[0]
+        return Vector3(s.x, ground_height(s.x, s.y) + 0.2, s.y)
+    return Vector3(0, 0.2, 28)
+
+# Height of the walkable ground at (x, z). Shipment is flat.
+func ground_height(x: float, z: float) -> float:
+    if map_id == "desert":
+        return DesertFoundryBuilder.ground(x, z)
+    return 0.0
+
+func _callout_tick() -> void:
+    if mui == null:
+        return
+    if map_id == "desert" and player != null:
+        mui.set_callout(DesertFoundryBuilder.get_callout_name(player.global_position))
+    else:
+        mui.set_callout("")
