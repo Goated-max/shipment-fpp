@@ -222,7 +222,7 @@ func _physics_process(dt: float) -> void:
     eye = lerpf(eye, 0.5 if sliding else (1.05 if crouch else 1.7), 1.0 - exp(-14.0 * dt))
     head.position.y = eye - land_dip
     land_dip = lerpf(land_dip, 0.0, 1.0 - exp(-9.0 * dt))
-    roll = lerpf(roll, 0.2 if sliding else 0.0, 1.0 - exp(-10.0 * dt))
+    roll = lerpf(roll, (0.2 if sliding else 0.0) * (1.0 - ads_t), 1.0 - exp(-10.0 * dt))
     cam.rotation.z = roll
     head.rotation.x = pitch + recoil_p
     fov = lerpf(fov, 86.0 if sliding else (84.0 if sprint else 75.0), 1.0 - exp(-8.0 * dt))
@@ -322,9 +322,9 @@ func _weapon(dt: float, sliding: bool) -> void:
     z += kick * 0.045 * (1.0 - 0.5 * a)
     rx += kick * 0.035
     if sliding:
-        y += 0.03
-        z -= 0.05
-        rz += 0.12
+        y += 0.03 * (1.0 - a)
+        z -= 0.05 * (1.0 - a)
+        rz += 0.12 * (1.0 - a)
     var rw := 0.0
     if reloading:
         reload_t += dt
