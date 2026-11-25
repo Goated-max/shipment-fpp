@@ -3,6 +3,7 @@ extends Node3D
 # A networked opponent: simple figure plus name/kill label, smoothed toward the last received state.
 
 var pid := 0
+var sliding := false
 var alive := true
 var target := Vector3.ZERO
 var tyaw := 0.0
@@ -32,12 +33,13 @@ func snap(p: Vector3) -> void:
     global_position = p
     target = p
 
-func set_target(p: Vector3, y: float, pt: float, a: bool, dead: bool, nm: String, k: int) -> void:
+func set_target(p: Vector3, y: float, pt: float, a: bool, dead: bool, nm: String, k: int, sl := false) -> void:
     target = p
     tyaw = y
     tpitch = pt
     alive = not dead
     visible = alive
+    sliding = sl
 
 func _process(dt: float) -> void:
     var k := 1.0 - exp(-14.0 * dt)
@@ -46,6 +48,7 @@ func _process(dt: float) -> void:
     else:
         global_position = global_position.lerp(target, k)
     rotation.y = lerp_angle(rotation.y, tyaw, k)
+    rotation.x = lerpf(rotation.x, -1.1 if sliding else 0.0, k)
     head.rotation.x = lerpf(head.rotation.x, tpitch, k)
 
 func _mat(c: Color) -> StandardMaterial3D:

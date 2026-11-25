@@ -5,8 +5,8 @@ extends RigidBody3D
 const FUSE := 2.0
 const RADIUS := 6.0
 const DAMAGE := 110.0
-const SELF_RADIUS := 3.5
-const SELF_DAMAGE := 60.0
+const SELF_RADIUS := 6.0
+const SELF_DAMAGE := 80.0
 
 var main: Main
 var fuse := FUSE

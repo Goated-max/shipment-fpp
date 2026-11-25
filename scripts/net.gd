@@ -226,12 +226,13 @@ func _update_self() -> void:
     E["c"] = me.crouch
     E["s"] = me.sprint
     E["a"] = me.ads
+    E["sl"] = me.slide_t > 0.0
 
 func _send_state() -> void:
     var me := main.player
     if me == null or host_link < 0:
         return
-    _send(host_link, {"k": "st", "p": me.global_position, "y": me.yaw, "pt": me.pitch, "c": me.crouch, "s": me.sprint, "a": me.ads})
+    _send(host_link, {"k": "st", "p": me.global_position, "y": me.yaw, "pt": me.pitch, "c": me.crouch, "s": me.sprint, "a": me.ads, "sl": me.slide_t > 0.0})
 
 func _send_world() -> void:
     var w := {"k": "world", "pl": _world_dict()}
@@ -242,7 +243,7 @@ func _world_dict() -> Dictionary:
     var out := {}
     for pid in pl:
         var E: Dictionary = pl[pid]
-        out[pid] = {"n": E["n"], "p": E["p"], "y": E["y"], "pt": E["pt"], "c": E["c"], "s": E["s"], "a": E["a"], "hp": E["hp"], "k": E["k"], "d": E["d"], "la": E.get("la", -1)}
+        out[pid] = {"n": E["n"], "p": E["p"], "y": E["y"], "pt": E["pt"], "c": E["c"], "s": E["s"], "a": E["a"], "hp": E["hp"], "k": E["k"], "d": E["d"], "la": E.get("la", -1), "sl": E.get("sl", false)}
     return out
 
 # Applies a world snapshot locally: updates my own HP/death/kills and the remote figures.
@@ -256,7 +257,7 @@ func _apply_world(d: Dictionary) -> void:
             continue
         if not remotes.has(pid):
             _spawn_remote(pid, E["p"])
-        remotes[pid].set_target(E["p"], E["y"], E["pt"], E["a"], E["d"], E["n"], E["k"])
+        remotes[pid].set_target(E["p"], E["y"], E["pt"], E["a"], E["d"], E["n"], E["k"], E.get("sl", false))
     for pid in remotes.keys():
         if pid == my_id or not d.has(pid):
             remotes[pid].queue_free()
@@ -335,6 +336,7 @@ func _take_state(pid: int, m: Dictionary) -> void:
     E["c"] = bool(m.get("c", false))
     E["s"] = bool(m.get("s", false))
     E["a"] = bool(m.get("a", false))
+    E["sl"] = bool(m.get("sl", false))
 
 func _on_kill(a: int, _v: int, p: Vector3) -> void:
     main.drop_at(p)
@@ -363,6 +365,8 @@ func _on_msg(link: int, m: Dictionary) -> void:
                 _apply_respawn(pid, m.get("p", Vector3.ZERO))
             "fire":
                 _host_fire(pid, m.get("p", Vector3.ZERO))
+            "boom":
+                _host_boom(pid, m.get("p", Vector3.ZERO))
     else:
         match k:
             "welcome":
@@ -509,7 +513,7 @@ func _tcp_poll() -> void:
                 _feed(lk, r[1])
 
 func _new_player(n: String) -> Dictionary:
-    return {"n": n, "p": Vector3.ZERO, "y": 0.0, "pt": 0.0, "c": false, "s": false, "a": false, "hp": 100.0, "k": 0, "d": false, "lh": 0.0, "la": -1}
+    return {"n": n, "p": Vector3.ZERO, "y": 0.0, "pt": 0.0, "c": false, "s": false, "a": false, "hp": 100.0, "k": 0, "d": false, "lh": 0.0, "la": -1, "sl": false}
 
 func _now() -> float:
     return Time.get_ticks_msec() / 1000.0
@@ -538,3 +542,41 @@ func _host_fire(pid: int, p: Vector3) -> void:
 func _on_fire(a: int, p: Vector3) -> void:
     if a != my_id:
         main.bot_fired(p)
+
+
+# ---------- networked grenade damage ----------
+# Each explosion is sent to the host, which damages every living player in range
+# (including the thrower) and reports kills to everyone.
+func report_boom(p: Vector3) -> void:
+    if not active or not in_match:
+        return
+    if is_host:
+        _host_boom(my_id, p)
+    else:
+        _send(host_link, {"k": "boom", "p": p})
+
+func _host_boom(thrower: int, p: Vector3) -> void:
+    if not in_match or not pl.has(thrower):
+        return
+    var now := _now()
+    for pid in pl:
+        var E: Dictionary = pl[pid]
+        if E["d"]:
+            continue
+        var rad: float = Grenade.SELF_RADIUS if pid == thrower else Grenade.RADIUS
+        var full: float = Grenade.SELF_DAMAGE if pid == thrower else Grenade.DAMAGE
+        var d: float = (E["p"] as Vector3).distance_to(p + Vector3(0, 0.9, 0))
+        if d >= rad:
+            continue
+        E["hp"] = maxf(0.0, E["hp"] - full * (1.0 - d / rad))
+        E["lh"] = now
+        E["la"] = thrower
+        if E["hp"] <= 0.0:
+            E["d"] = true
+            if pid != thrower:
+                pl[thrower]["k"] += 1
+            _bcast({"k": "kill", "a": thrower, "v": pid, "p": E["p"]})
+            _on_kill(thrower, pid, E["p"])
+            if pl[thrower]["k"] >= KILL_LIMIT:
+                _end_match(thrower)
+                return

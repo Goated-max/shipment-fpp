@@ -515,6 +515,8 @@ func damage_bot(b, amount: float, head: bool) -> void:
 
 # Grenade blast: damages bots by distance, hurts the thrower if close, plus visuals and sound.
 func explode(p: Vector3, radius: float, dmg: float, self_r: float, self_dmg: float) -> void:
+    if Net.active:
+        Net.report_boom(p)
     for b in bots:
         if not b.alive:
             continue
@@ -522,7 +524,7 @@ func explode(p: Vector3, radius: float, dmg: float, self_r: float, self_dmg: flo
         if d < radius:
             damage_bot(b, dmg * (1.0 - d / radius), false)
     var pd: float = player.global_position.distance_to(p + Vector3(0, 0.9, 0))
-    if pd < self_r and not player.dead:
+    if not Net.active and pd < self_r and not player.dead:
         player.hurt(self_dmg * (1.0 - pd / self_r), p)
     _boom(p)
     for i in 3:

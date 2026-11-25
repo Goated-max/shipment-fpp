@@ -5,8 +5,8 @@ signal respawn_requested
 
 const IDS := ["jump", "slide", "fire", "fire2", "ads", "reload", "gren", "swap", "radar", "ammo", "hpw", "kills", "stance"]
 const BTN_IDS := ["jump", "slide", "fire", "fire2", "ads", "reload", "gren", "swap"]
-const NAMES := {"jump": "JUMP", "slide": "SLIDE", "fire": "FIRE", "fire2": "FIRE 2", "ads": "ADS", "reload": "RELOAD", "radar": "RADAR", "ammo": "AMMO", "hpw": "HEALTH", "kills": "KILLS", "stance": "STANCE", "gren": "GRENADE", "swap": "SWAP"}
-const GLYPH := {"jump": "JUMP", "slide": "SLIDE", "fire": "FIRE", "fire2": "FIRE", "ads": "ADS", "reload": "RLD", "gren": "GREN", "swap": "SWAP"}
+const NAMES := {"jump": "JUMP", "slide": "SLIDE", "fire": "AIM+FIRE", "fire2": "BULLET", "ads": "ADS", "reload": "RELOAD", "radar": "RADAR", "ammo": "AMMO", "hpw": "HEALTH", "kills": "KILLS", "stance": "STANCE", "gren": "GRENADE", "swap": "SWAP"}
+const GLYPH := {"jump": "JUMP", "slide": "SLIDE", "fire": "AIM+FIRE", "fire2": "BULLET", "ads": "ADS", "reload": "RLD", "gren": "GREN", "swap": "SWAP"}
 # id: [width, height, x-anchor (l/r/c), x-offset, y-anchor (t/b/c), y-offset]
 const DEF := {
     "radar": [150, 150, "l", 20, "t", 20],
@@ -195,6 +195,7 @@ var mv := Vector2.ZERO
 var look := Vector2.ZERO
 var lock := false
 var firing := false
+var aim_fire := false
 var sprint_key := false
 var sens := 1.0
 var hp := 100.0
@@ -673,6 +674,7 @@ func _clear_input() -> void:
     look = Vector2.ZERO
     lock = false
     firing = false
+    aim_fire = false
     fire_state["fire"] = false
     fire_state["fire2"] = false
     for id in BTN_IDS:
@@ -725,6 +727,7 @@ func _press(id: String, on: bool) -> void:
     if id == "fire" or id == "fire2":
         fire_state[id] = on
         firing = fire_state["fire"] or fire_state["fire2"]
+        aim_fire = fire_state["fire"]
         if firing:
             lock = false
     elif on:

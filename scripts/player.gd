@@ -62,6 +62,7 @@ var was_firing := false
 var shake_amt := 0.0
 var was_air := false
 var land_dip := 0.0
+var dust: CPUParticles3D
 
 func _ready() -> void:
     collision_layer = 0
@@ -84,6 +85,7 @@ func _ready() -> void:
     head.add_child(cam)
     cam.make_current()
     _build_gun()
+    _setup_dust()
     hud.set_ammo(mag, reserve)
 
 # ---------- procedural first-person viewmodel ----------
@@ -217,10 +219,10 @@ func _physics_process(dt: float) -> void:
     var ch := 1.1 if (crouch or sliding) else 1.8
     shape.height = lerpf(shape.height, ch, 1.0 - exp(-14.0 * dt))
     col.position.y = shape.height * 0.5
-    eye = lerpf(eye, 0.65 if sliding else (1.05 if crouch else 1.7), 1.0 - exp(-14.0 * dt))
+    eye = lerpf(eye, 0.5 if sliding else (1.05 if crouch else 1.7), 1.0 - exp(-14.0 * dt))
     head.position.y = eye - land_dip
     land_dip = lerpf(land_dip, 0.0, 1.0 - exp(-9.0 * dt))
-    roll = lerpf(roll, 0.09 if sliding else 0.0, 1.0 - exp(-10.0 * dt))
+    roll = lerpf(roll, 0.2 if sliding else 0.0, 1.0 - exp(-10.0 * dt))
     cam.rotation.z = roll
     head.rotation.x = pitch + recoil_p
     fov = lerpf(fov, 86.0 if sliding else (84.0 if sprint else 75.0), 1.0 - exp(-8.0 * dt))
@@ -233,6 +235,7 @@ func _physics_process(dt: float) -> void:
         hp = minf(100.0, hp + 25.0 * dt)
     hud.hp = hp
     hud.stance = _stance()
+    dust.emitting = slide_t > 0.0 and is_on_floor()
     if shake_amt > 0.001:
         cam.h_offset = randf_range(-1.0, 1.0) * shake_amt
         cam.v_offset = randf_range(-1.0, 1.0) * shake_amt
@@ -284,7 +287,7 @@ func _weapon(dt: float, sliding: bool) -> void:
         ads = false
     was_sprint = sprint
     # firing auto-aims down sights (sprint is already blocked while firing)
-    if firing and not reloading and not sprint:
+    if hud.aim_fire and not reloading and not sprint:
         ads = true
     cd -= dt
     gren_cd -= dt
@@ -532,3 +535,25 @@ func ammo_pickup() -> int:
 
 func shake(a: float) -> void:
     shake_amt = maxf(shake_amt, a)
+
+
+# Dust kicked up behind the player while sliding on the ground.
+func _setup_dust() -> void:
+    dust = CPUParticles3D.new()
+    dust.emitting = false
+    dust.amount = 16
+    dust.lifetime = 0.6
+    dust.direction = Vector3.UP
+    dust.spread = 60.0
+    dust.initial_velocity_min = 0.6
+    dust.initial_velocity_max = 1.6
+    dust.gravity = Vector3(0, -1.5, 0)
+    dust.scale_amount_min = 0.8
+    dust.scale_amount_max = 1.6
+    dust.position = Vector3(0, 0.08, 0)
+    var sm := SphereMesh.new()
+    sm.radius = 0.09
+    sm.height = 0.18
+    sm.material = _mat(Color(0.75, 0.68, 0.52), true)
+    dust.mesh = sm
+    add_child(dust)
