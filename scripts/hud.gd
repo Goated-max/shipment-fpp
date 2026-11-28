@@ -931,7 +931,7 @@ func _build_scope() -> void:
 # Thin scope reticle at the screen centre, which is exactly where bullets go.
 func _draw_scope() -> void:
     var c := scope_ov.size * 0.5
-    var r := minf(scope_ov.size.x, scope_ov.size.y) * 0.3
+    var r := minf(scope_ov.size.x, scope_ov.size.y) * 0.46
     var dark := Color(0.02, 0.02, 0.02, 0.9)
     var big := maxf(scope_ov.size.x, scope_ov.size.y) * 2.0
     scope_ov.draw_arc(c, r + big * 0.5, 0.0, TAU, 256, Color.BLACK, big)

@@ -756,9 +756,9 @@ func build_preview(holder: Node3D, id: String) -> void:
 func _ads_fov() -> float:
     match cur:
         "sniper":
-            return 20.0
+            return 26.0
         "marksman":
-            return 30.0
+            return 34.0
         _:
             return 52.0
 
