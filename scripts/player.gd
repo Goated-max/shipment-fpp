@@ -584,7 +584,6 @@ func _build_sniper_model() -> void:
     var gm := _mat(Color(0.19, 0.2, 0.23))
     var pl := _mat(Color(0.09, 0.1, 0.11))
     var tanm := _mat(Color(0.72, 0.6, 0.38))
-    var glass := _glass_mat()
     _box(gun, Vector3(0.05, 0.07, 0.28), Vector3(0, 0.03, 0.0), gm)              # receiver
     _box(gun, Vector3(0.028, 0.028, 0.7), Vector3(0, 0.035, -0.55), pl)          # long barrel
     _scope_part(_box(gun, Vector3(0.02, 0.05, 0.04), Vector3(0, 0.085, -0.33), gm))  # front scope mount
@@ -592,8 +591,6 @@ func _build_sniper_model() -> void:
     _scope_part(_cyl(Vector3(0, 0.12, -0.26), 0.022, 0.3, Vector3(PI / 2, 0, 0), pl))   # scope tube
     _scope_part(_cyl(Vector3(0, 0.12, -0.4), 0.03, 0.05, Vector3(PI / 2, 0, 0), gm))    # objective bell
     _scope_part(_cyl(Vector3(0, 0.12, -0.12), 0.026, 0.04, Vector3(PI / 2, 0, 0), gm))  # eyepiece
-    _cyl(Vector3(0, 0.12, -0.43), 0.026, 0.01, Vector3(PI / 2, 0, 0), glass)            # front lens (see-through)
-    _cyl(Vector3(0, 0.12, -0.102), 0.02, 0.008, Vector3(PI / 2, 0, 0), glass)           # rear lens (see-through)
     _scope_part(_cyl(Vector3(0, 0.155, -0.26), 0.012, 0.025, Vector3(0, 0, 0), gm))     # elevation turret
     _scope_part(_cyl(Vector3(0.034, 0.12, -0.26), 0.012, 0.025, Vector3(0, 0, PI / 2), gm))  # windage turret
     _rpart("bolt", _box(gun, Vector3(0.02, 0.02, 0.04), Vector3(0.035, 0.05, 0.04), tanm))  # bolt handle
@@ -623,14 +620,11 @@ func _build_marksman_model() -> void:
     var gm := _mat(Color(0.19, 0.2, 0.23))
     var pl := _mat(Color(0.09, 0.1, 0.11))
     var tanm := _mat(Color(0.72, 0.6, 0.38))
-    var glass := _glass_mat()
     _box(gun, Vector3(0.05, 0.075, 0.3), Vector3(0, 0.03, 0.0), gm)              # receiver
     _box(gun, Vector3(0.03, 0.02, 0.22), Vector3(0, 0.075, -0.02), gm)           # top rail
     _scope_part(_box(gun, Vector3(0.036, 0.05, 0.12), Vector3(0, 0.11, -0.1), pl))      # optic body
     _scope_part(_cyl(Vector3(0, 0.11, -0.18), 0.02, 0.05, Vector3(PI / 2, 0, 0), pl))   # sunshade
-    _cyl(Vector3(0, 0.11, -0.207), 0.017, 0.006, Vector3(PI / 2, 0, 0), glass)          # front lens (see-through)
     _scope_part(_cyl(Vector3(0, 0.11, -0.03), 0.018, 0.03, Vector3(PI / 2, 0, 0), gm))  # eyepiece
-    _cyl(Vector3(0, 0.11, -0.012), 0.014, 0.006, Vector3(PI / 2, 0, 0), glass)          # rear lens (see-through)
     _scope_part(_cyl(Vector3(0, 0.14, -0.1), 0.01, 0.02, Vector3(0, 0, 0), gm))         # turret knob
     _box(gun, Vector3(0.058, 0.058, 0.24), Vector3(0, 0.02, -0.28), tanm)        # tan handguard
     _box(gun, Vector3(0.026, 0.026, 0.36), Vector3(0, 0.03, -0.56), pl)          # medium barrel

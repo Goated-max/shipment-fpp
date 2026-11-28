@@ -923,6 +923,7 @@ func _build_scope() -> void:
     scope_ov.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     scope_ov.mouse_filter = Control.MOUSE_FILTER_IGNORE
     root.add_child(scope_ov)
+    root.move_child(scope_ov, 0)
     scope_ov.draw.connect(_draw_scope)
     scope_ov.resized.connect(func() -> void: scope_ov.queue_redraw())
     scope_ov.hide()
@@ -932,6 +933,8 @@ func _draw_scope() -> void:
     var c := scope_ov.size * 0.5
     var r := minf(scope_ov.size.x, scope_ov.size.y) * 0.3
     var dark := Color(0.02, 0.02, 0.02, 0.9)
+    var big := maxf(scope_ov.size.x, scope_ov.size.y) * 2.0
+    scope_ov.draw_arc(c, r + big * 0.5, 0.0, TAU, 256, Color.BLACK, big)
     scope_ov.draw_arc(c, r, 0.0, TAU, 160, dark, 4.0)
     scope_ov.draw_line(Vector2(c.x - r, c.y), Vector2(c.x - 14.0, c.y), dark, 2.0)
     scope_ov.draw_line(Vector2(c.x + 14.0, c.y), Vector2(c.x + r, c.y), dark, 2.0)
