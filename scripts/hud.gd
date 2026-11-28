@@ -549,11 +549,13 @@ var pp_pitch := -0.1
 var pp_dist := 1.4
 var pp_specs: PanelContainer
 var pp_spec_bars := {}   # key -> [ProgressBar, Label]
+var pp_spec_ammo: Label
 # Rough ratings out of 10 per weapon for the specs panel. Tune these as the numbers change.
 # Weapons without an entry here don't show the panel yet.
 var spec_rating := {
     "assault": {"damage": 6.0, "fire": 7.0, "accuracy": 6.0, "mobility": 6.0, "range": 8.0, "control": 7.0},
     "smg": {"damage": 5.0, "fire": 8.0, "accuracy": 6.0, "mobility": 8.0, "range": 4.0, "control": 6.0},
+    "lmg": {"damage": 6.0, "fire": 7.0, "accuracy": 4.0, "mobility": 3.0, "range": 7.0, "control": 4.0},
 }
 
 func _mini_btn(box: Control, text: String, cb: Callable) -> void:
@@ -655,6 +657,7 @@ func _build_specs(parent: Control) -> void:
         var val := _lbl(row, "", 14, HORIZONTAL_ALIGNMENT_LEFT, Color(1, 1, 1, 0.85))
         val.custom_minimum_size = Vector2(140, 0)
         pp_spec_bars[pair[0]] = [pb, val]
+    pp_spec_ammo = _lbl(vb, "", 14, HORIZONTAL_ALIGNMENT_LEFT, Color(1, 1, 1, 0.7))
     pp_specs.hide()
 
 # Fills the specs panel from the weapon's current numbers.
@@ -671,13 +674,14 @@ func _fill_specs(gid: String) -> void:
         "accuracy": "hip spread %.3f" % float(w["spread"]),
         "mobility": "%.1f m/s walk" % (Player.WALK * float(w.get("move", 1.0))),
         "range": rng,
-        "control": "%.4f rise / shot" % 0.0065,                                     # recoil gain in player.gd
+        "control": "%.4f rise / shot" % (0.0065 * float(w.get("recoil", 1.0))),                                     # recoil gain in player.gd
     }
     var rt: Dictionary = spec_rating[gid]
     for k in pp_spec_bars:
         var pair: Array = pp_spec_bars[k]
         (pair[0] as ProgressBar).value = float(rt[k])
         (pair[1] as Label).text = String(txt[k])
+    pp_spec_ammo.text = "Magazine %d / Reserve %d / Reload %.1f s" % [int(w["mag"]), int(w["max"]), float(w.get("reload", 2.0))]
 
 func _equip_preview() -> void:
     _pick_primary(pp_cur)

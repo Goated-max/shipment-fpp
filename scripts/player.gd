@@ -13,7 +13,7 @@ const PRIMARIES := ["assault", "smg", "lmg", "sniper", "shotgun", "marksman"]
 const WEAPONS := {
     "assault": {"name": "VANGUARD", "cat": "Assault", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21), "move": 0.9, "ads_speed": 9.0},
     "smg": {"name": "VIPER", "cat": "SMG", "mag": 30, "max": 120, "rate": 0.07, "auto": true, "spread": 0.012, "dmg": 0.83, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21), "move": 1.05, "ads_speed": 13.0, "fo_start": 15.0, "fo_end": 45.0},
-    "lmg": {"name": "WARDEN", "cat": "LMG", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
+    "lmg": {"name": "WARDEN", "cat": "LMG", "mag": 100, "max": 200, "rate": 0.09, "auto": true, "spread": 0.016, "dmg": 1.1, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21), "move": 0.8, "ads_speed": 6.5, "recoil": 1.3, "reload": 3.0, "fo_start": 25.0, "fo_end": 70.0},
     "sniper": {"name": "LONGSHOT", "cat": "Sniper", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.12, 0.0)},
     "shotgun": {"name": "BREACHER", "cat": "Shotgun", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
     "marksman": {"name": "HAWK", "cat": "Marksman", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.11, -0.088)},
@@ -355,10 +355,11 @@ func _weapon(dt: float, sliding: bool) -> void:
         z -= 0.05 * (1.0 - a)
         rz += 0.12 * (1.0 - a)
     var rrot := Vector3.ZERO
+    var rtime := float(WEAPONS[cur].get("reload", 2.0))
     if reloading:
         reload_t += dt
-        rrot = _reload_pose(clampf(reload_t / 2.0, 0.0, 1.0))
-        if reload_t >= 2.0:
+        rrot = _reload_pose(clampf(reload_t / rtime, 0.0, 1.0))
+        if reload_t >= rtime:
             var n := mini(int(WEAPONS[cur]["mag"]) - mag, reserve)
             mag += n
             reserve -= n
@@ -415,7 +416,7 @@ func _shoot() -> void:
     flash_t = 0.045
     var aa := 1.0 - 0.55 * ads_t
     kick = minf(1.0, kick + 0.7 * aa)
-    recoil_p = minf(0.35, recoil_p + (0.0065 + minf(float(shots), 24.0) * 0.0002) * aa)
+    recoil_p = minf(0.35, recoil_p + (0.0065 + minf(float(shots), 24.0) * 0.0002) * aa * float(WEAPONS[cur].get("recoil", 1.0)))
     yaw += (randf() - 0.5) * 0.0028 * aa
     bloom = minf(1.0, bloom + 0.18)
 
