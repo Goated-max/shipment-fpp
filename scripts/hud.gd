@@ -477,27 +477,46 @@ func _button_in(box: Control, text: String, cb: Callable) -> void:
     b.pressed.connect(cb)
     box.add_child(b)
 
-var map_btns := {}     # id -> [Button, label], for the menu's map picker
 var map_sel := "shipment"
-
-func _map_button(box: Control, id: String, text: String) -> void:
-    var b := Button.new()
-    b.focus_mode = Control.FOCUS_NONE
-    b.custom_minimum_size = Vector2(320, 48)
-    b.add_theme_font_size_override("font_size", 20)
-    b.pressed.connect(_pick_map.bind(id))
-    box.add_child(b)
-    map_btns[id] = [b, text]
+var mapsel: ColorRect
 
 func _pick_map(id: String) -> void:
     map_sel = id
-    _refresh_maps()
     map_picked.emit(id)
 
-func _refresh_maps() -> void:
-    for k in map_btns:
-        var v: Array = map_btns[k]
-        (v[0] as Button).text = ("> %s <" % v[1]) if k == map_sel else String(v[1])
+func _play_map(id: String) -> void:
+    _pick_map(id)
+    mapsel.hide()
+    _deploy()
+
+func _open_mapsel() -> void:
+    menu.hide()
+    mapsel.show()
+
+func _close_mapsel() -> void:
+    mapsel.hide()
+    menu.show()
+
+func _open_bt() -> void:
+    mapsel.hide()
+    _open_lobby()
+
+func _build_mapsel() -> void:
+    mapsel = _overlay(Color(0.03, 0.07, 0.13, 0.92))
+    var sc := ScrollContainer.new()
+    sc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    mapsel.add_child(sc)
+    var vb := VBoxContainer.new()
+    vb.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+    vb.add_theme_constant_override("separation", 14)
+    sc.add_child(vb)
+    _lbl(vb, "CHOOSE MAP", 40, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 0.7, 0))
+    _button_in(vb, "SHIPMENT", _play_map.bind("shipment"))
+    _button_in(vb, "DESERT FOUNDRY", _play_map.bind("desert"))
+    _lbl(vb, "MULTIPLAYER", 22, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 1, 1, 0.8))
+    _button_in(vb, "BLUETOOTH MODE", _open_bt)
+    _button_in(vb, "BACK", _close_mapsel)
+    mapsel.hide()
 
 var loadout: ColorRect
 var lo_vals := {}      # row id -> Label showing the equipped item
@@ -559,15 +578,11 @@ func _build_menu_death() -> void:
     ss.custom_minimum_size = Vector2(320, 36)
     ss.value_changed.connect(func(v: float) -> void: sens = v)
     mc.add_child(ss)
-    _lbl(mc, "MAP", 18, HORIZONTAL_ALIGNMENT_CENTER)
-    _map_button(mc, "shipment", "SHIPMENT")
-    _map_button(mc, "desert", "DESERT FOUNDRY")
-    _refresh_maps()
+    _button_in(mc, "DEPLOY", _open_mapsel)
     _button_in(mc, "LOADOUT", _open_loadout)
-    _button_in(mc, "DEPLOY", _deploy)
     _button_in(mc, "CUSTOMIZE HUD LAYOUT", _start_edit.bind(true))
-    _button_in(mc, "MULTIPLAYER (BLUETOOTH)", _open_lobby)
     _build_loadout()
+    _build_mapsel()
 
 # ---------- layout (position + scale per element, saved to user://) ----------
 func _rect(id: String) -> Rect2:
