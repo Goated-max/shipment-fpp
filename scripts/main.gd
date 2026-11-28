@@ -174,11 +174,15 @@ func _hit_figure(o: Vector3, d: Vector3, p: Vector3, maxt: float) -> Dictionary:
     if t >= 0.0 and t < maxt:
         out = {"zone": "head", "t": t}
         maxt = t
-    for y in [0.35, 0.75, 1.15]:
+    for y in [0.35, 0.75]:
         t = _sph(o, d, p + Vector3(0, y, 0), 0.3)
         if t >= 0.0 and t < maxt:
-            out = {"zone": "body", "t": t}
+            out = {"zone": "lower", "t": t}
             maxt = t
+    t = _sph(o, d, p + Vector3(0, 1.15, 0), 0.3)
+    if t >= 0.0 and t < maxt:
+        out = {"zone": "upper", "t": t}
+        maxt = t
     return out
 
 # Analytic hit test against bots and networked opponents.
@@ -200,6 +204,16 @@ func bot_ray(o: Vector3, d: Vector3, maxt: float) -> Dictionary:
                 best = {"bot": rp, "zone": r2["zone"], "t": bt}
     return best
 
+# Base damage per hit zone, before weapon multipliers and falloff.
+func zone_base(zone: String) -> float:
+    match zone:
+        "head":
+            return 48.0
+        "lower":
+            return 14.0
+        _:
+            return 24.0
+
 func hit_bot(b, zone: String, mult := 1.0) -> void:
     shots_hit += 1
     if zone == "head":
@@ -207,9 +221,9 @@ func hit_bot(b, zone: String, mult := 1.0) -> void:
     if b is RemotePlayer:
         hud.hitmark(zone == "head")
         play("hitm", 0.8)
-        Net.request_hit(b.pid, zone)
+        Net.request_hit(b.pid, zone, zone_base(zone) * mult)
         return
-    damage_bot(b, (48.0 if zone == "head" else 24.0) * mult, zone == "head")
+    damage_bot(b, zone_base(zone) * mult, zone == "head")
 
 func spawn_point(me) -> Vector2:
     var pp := Vector2(0, 28)

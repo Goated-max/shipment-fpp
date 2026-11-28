@@ -669,7 +669,7 @@ func _fill_specs(gid: String) -> void:
     if w.has("fo_start"):
         rng = "falloff %d-%d m" % [int(w["fo_start"]), int(w["fo_end"])]
     var txt := {
-        "damage": "%d body / %d head" % [roundi(24.0 * dmg), roundi(48.0 * dmg)],   # 24 / 48 base from main.hit_bot
+        "damage": "U %d  L %d  H %d" % [roundi(24.0 * dmg), roundi(14.0 * dmg), roundi(48.0 * dmg)],   # upper, lower, head   # 24 / 48 base from main.hit_bot
         "fire": "%d RPM" % roundi(60.0 / rate),
         "accuracy": "hip spread %.3f" % float(w["spread"]),
         "mobility": "%.1f m/s walk" % (Player.WALK * float(w.get("move", 1.0))),

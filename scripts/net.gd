@@ -171,10 +171,9 @@ func reset() -> void:
         main.set_board("")
 
 # ---------- gameplay requests ----------
-func request_hit(target: int, zone: String) -> void:
+func request_hit(target: int, zone: String, dmg: float) -> void:
     if not in_match:
         return
-    var dmg := 48.0 if zone == "head" else 24.0
     if is_host:
         _apply_hit(my_id, target, dmg)
     else:
