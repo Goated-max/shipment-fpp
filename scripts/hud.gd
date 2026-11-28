@@ -1186,6 +1186,8 @@ func _down(idx: int, pos: Vector2) -> void:
             _press(id, true)
             if id == "fire" and look_idx == -1:
                 look_idx = idx
+            if (id == "ads" or id == "fire2") and look_idx == -1 and player != null and player.cur == "sniper":
+                look_idx = idx
             return
     if pos.x < _vp().x * 0.45:
         if stick_idx == -1:

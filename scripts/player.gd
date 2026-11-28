@@ -298,14 +298,16 @@ func _start_reload() -> void:
 func _weapon(dt: float, sliding: bool) -> void:
     var firing: bool = hud.firing
     var sniper := cur == "sniper"
+    # sniper: any scope button held (ADS, AIM+FIRE or BULLET) keeps the scope up
+    var scope_held: bool = hud.ads_held or hud.firing
     # sniper: hold ADS to scope, letting go fires one round (if fully scoped)
-    if sniper and was_scope and not hud.ads_held and ads_t > 0.6 and bolt_t <= 0.0 and mag > 0 and not reloading and swap_t <= 0.0:
+    if sniper and was_scope and not scope_held and ads_t > 0.6 and bolt_t <= 0.0 and mag > 0 and not reloading and swap_t <= 0.0:
         _shoot()
         bolt_t = 0.5
     if sniper:
-        was_scope = hud.ads_held
+        was_scope = scope_held
         hud.take("ads")
-        ads = hud.ads_held and not reloading
+        ads = scope_held and not reloading
     elif hud.take("ads") and not reloading:
         ads = not ads
         if ads:
@@ -337,7 +339,7 @@ func _weapon(dt: float, sliding: bool) -> void:
     if bolt_t > 0.0:
         # after a shot: the bolt cycles and the scope comes back in over 0.5 s (if still held)
         bolt_t -= dt
-        if hud.ads_held:
+        if scope_held:
             ads_t = minf(1.0, ads_t + dt / 0.5)
         else:
             ads_t = maxf(0.0, ads_t - dt * 4.0)
