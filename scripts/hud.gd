@@ -538,25 +538,135 @@ func _lo_primary_row(box: Control) -> void:
     vb.add_child(lo_primary_btn)
     box.add_child(pc)
 
+var pp_view: SubViewport
+var pp_pivot: Node3D
+var pp_holder: Node3D
+var pp_cam: Camera3D
+var pp_name: Label
+var pp_cur := "assault"
+var pp_yaw := 0.6
+var pp_pitch := -0.1
+var pp_dist := 1.4
+
+func _mini_btn(box: Control, text: String, cb: Callable) -> void:
+    var b := Button.new()
+    b.text = text
+    b.focus_mode = Control.FOCUS_NONE
+    b.custom_minimum_size = Vector2(120, 48)
+    b.add_theme_font_size_override("font_size", 20)
+    b.pressed.connect(cb)
+    box.add_child(b)
+
+func _build_preview_world(svc: SubViewportContainer) -> void:
+    pp_view = SubViewport.new()
+    pp_view.own_world_3d = true
+    pp_view.size = Vector2i(800, 800)
+    svc.add_child(pp_view)
+    var we := WorldEnvironment.new()
+    var env := Environment.new()
+    env.background_mode = Environment.BG_COLOR
+    env.background_color = Color(0.05, 0.09, 0.15)
+    env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+    env.ambient_light_color = Color(0.7, 0.75, 0.85)
+    env.ambient_light_energy = 0.9
+    we.environment = env
+    pp_view.add_child(we)
+    var sun := DirectionalLight3D.new()
+    sun.rotation_degrees = Vector3(-35, 30, 0)
+    sun.light_energy = 1.2
+    pp_view.add_child(sun)
+    pp_cam = Camera3D.new()
+    pp_cam.fov = 40.0
+    pp_cam.current = true
+    pp_view.add_child(pp_cam)
+    pp_pivot = Node3D.new()
+    pp_pivot.position = Vector3(0, 0, -0.25)
+    pp_view.add_child(pp_pivot)
+    pp_holder = Node3D.new()
+    pp_holder.position = Vector3(0, 0, 0.25)
+    pp_pivot.add_child(pp_holder)
+    _apply_preview()
+
+func _apply_preview() -> void:
+    if pp_pivot == null:
+        return
+    pp_pivot.rotation = Vector3(pp_pitch, pp_yaw, 0.0)
+    pp_cam.position = Vector3(0.0, 0.1, -0.25 + pp_dist)
+    pp_cam.look_at(Vector3(0.0, 0.0, -0.25))
+
+func _zoom(d: float) -> void:
+    pp_dist = clampf(pp_dist + d, 0.7, 2.6)
+    _apply_preview()
+
+func _preview_input(e: InputEvent) -> void:
+    var dr := e as InputEventScreenDrag
+    var mm := e as InputEventMouseMotion
+    var rel := Vector2.ZERO
+    if dr:
+        rel = dr.relative
+    elif mm and (mm.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+        rel = mm.relative
+    if rel != Vector2.ZERO:
+        pp_yaw -= rel.x * 0.01
+        pp_pitch = clampf(pp_pitch - rel.y * 0.01, -1.3, 1.3)
+        _apply_preview()
+
+func _show_preview(gid: String) -> void:
+    pp_cur = gid
+    var w: Dictionary = Player.WEAPONS[gid]
+    pp_name.text = "%s   .   %s" % [w["name"], String(w["cat"]).to_upper()]
+    if player != null and pp_holder != null:
+        player.build_preview(pp_holder, gid)
+
+func _equip_preview() -> void:
+    _pick_primary(pp_cur)
+
 func _build_primary_pick() -> void:
     lo_primary_pick = _overlay(Color(0.03, 0.07, 0.13, 0.94))
+    var hb := HBoxContainer.new()
+    hb.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    lo_primary_pick.add_child(hb)
     var sc := ScrollContainer.new()
-    sc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-    lo_primary_pick.add_child(sc)
+    sc.custom_minimum_size = Vector2(440, 0)
+    sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    hb.add_child(sc)
     var vb := VBoxContainer.new()
-    vb.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+    vb.custom_minimum_size = Vector2(420, 0)
     vb.add_theme_constant_override("separation", 10)
     sc.add_child(vb)
-    _lbl(vb, "PRIMARY WEAPON", 36, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 0.7, 0))
+    _lbl(vb, "PRIMARY WEAPON", 32, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 0.7, 0))
     for gid in Player.PRIMARIES:
         var w: Dictionary = Player.WEAPONS[gid]
-        _lbl(vb, String(w["cat"]).to_upper(), 16, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 1, 1, 0.6))
-        _button_in(vb, String(w["name"]), _pick_primary.bind(gid))
+        _lbl(vb, String(w["cat"]).to_upper(), 14, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 1, 1, 0.6))
+        _button_in(vb, String(w["name"]), _show_preview.bind(gid))
     _button_in(vb, "BACK", _close_primary)
+    var rc := VBoxContainer.new()
+    rc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    rc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    rc.add_theme_constant_override("separation", 8)
+    hb.add_child(rc)
+    pp_name = _lbl(rc, "", 26, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 0.7, 0))
+    var svc := SubViewportContainer.new()
+    svc.stretch = true
+    svc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    svc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    svc.mouse_filter = Control.MOUSE_FILTER_STOP
+    svc.gui_input.connect(_preview_input)
+    rc.add_child(svc)
+    _build_preview_world(svc)
+    _lbl(rc, "Drag to rotate", 14, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 1, 1, 0.6))
+    var row := HBoxContainer.new()
+    row.alignment = BoxContainer.ALIGNMENT_CENTER
+    row.add_theme_constant_override("separation", 12)
+    rc.add_child(row)
+    _mini_btn(row, "ZOOM +", _zoom.bind(-0.25))
+    _mini_btn(row, "ZOOM -", _zoom.bind(0.25))
+    _mini_btn(row, "EQUIP", _equip_preview)
     lo_primary_pick.hide()
 
 func _open_primary() -> void:
     loadout.hide()
+    _show_preview(Player.primary_pick)
     lo_primary_pick.show()
 
 func _close_primary() -> void:

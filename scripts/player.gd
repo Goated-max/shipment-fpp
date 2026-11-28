@@ -715,6 +715,26 @@ func _do_swap_switch() -> void:
     hud.set_weapon(WEAPONS[cur]["name"])
     hud.set_ammo(mag, reserve)
 
+# Builds a weapon model into a preview holder (used by the loadout page) without touching the live gun.
+func build_preview(holder: Node3D, id: String) -> void:
+    var s_gun = gun
+    var s_parts = rparts
+    var s_rest = rrest
+    var s_muzzle = muzzle
+    var s_flash = flash_mesh
+    rparts = {}
+    rrest = {}
+    for c in holder.get_children():
+        holder.remove_child(c)
+        c.queue_free()
+    gun = holder
+    _build_model(id)
+    gun = s_gun
+    rparts = s_parts
+    rrest = s_rest
+    muzzle = s_muzzle
+    flash_mesh = s_flash
+
 func _reset_slots() -> void:
     swap_t = 0.0
     swap_to = ""
