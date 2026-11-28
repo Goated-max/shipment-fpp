@@ -543,19 +543,42 @@ func _build_lmg_model() -> void:
     _hands(-0.42)
     _add_muzzle(-0.72, 0.03)
 
-# LONGSHOT sniper: long barrel, scope and bolt handle.
+# Cylinder piece for scope parts. rot is in radians: (PI/2, 0, 0) lays it along Z, (0, 0, PI/2) along X.
+func _cyl(pos: Vector3, r: float, h: float, rot: Vector3, m: Material) -> void:
+    var cm := CylinderMesh.new()
+    cm.top_radius = r
+    cm.bottom_radius = r
+    cm.height = h
+    cm.radial_segments = 12
+    var mi := MeshInstance3D.new()
+    mi.mesh = cm
+    mi.material_override = m
+    mi.position = pos
+    mi.rotation = rot
+    mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    gun.add_child(mi)
+
+# LONGSHOT sniper: long barrel, a real scope with lenses and turrets, bolt handle.
 func _build_sniper_model() -> void:
     var gm := _mat(Color(0.19, 0.2, 0.23))
     var pl := _mat(Color(0.09, 0.1, 0.11))
     var tanm := _mat(Color(0.72, 0.6, 0.38))
-    _box(gun, Vector3(0.05, 0.07, 0.28), Vector3(0, 0.03, 0.0), gm)
-    _box(gun, Vector3(0.028, 0.028, 0.7), Vector3(0, 0.035, -0.55), pl)
-    _box(gun, Vector3(0.04, 0.05, 0.22), Vector3(0, 0.1, -0.02), pl)
-    _box(gun, Vector3(0.05, 0.03, 0.03), Vector3(0, 0.075, -0.02), gm)
-    _box(gun, Vector3(0.02, 0.02, 0.04), Vector3(0.035, 0.05, 0.04), tanm)
-    _box(gun, Vector3(0.036, 0.13, 0.05), Vector3(0, -0.1, 0.0), pl)
-    _box(gun, Vector3(0.036, 0.12, 0.05), Vector3(0, -0.09, 0.14), pl)
-    _box(gun, Vector3(0.055, 0.1, 0.34), Vector3(0, -0.01, 0.32), tanm)
+    var glass := _mat(Color(0.25, 0.5, 0.65))
+    _box(gun, Vector3(0.05, 0.07, 0.28), Vector3(0, 0.03, 0.0), gm)              # receiver
+    _box(gun, Vector3(0.028, 0.028, 0.7), Vector3(0, 0.035, -0.55), pl)          # long barrel
+    _box(gun, Vector3(0.02, 0.05, 0.04), Vector3(0, 0.07, -0.12), gm)            # front scope mount
+    _box(gun, Vector3(0.02, 0.05, 0.04), Vector3(0, 0.07, 0.06), gm)             # rear scope mount
+    _cyl(Vector3(0, 0.12, -0.03), 0.026, 0.36, Vector3(PI / 2, 0, 0), pl)        # scope tube
+    _cyl(Vector3(0, 0.12, -0.23), 0.04, 0.07, Vector3(PI / 2, 0, 0), gm)         # objective bell
+    _cyl(Vector3(0, 0.12, 0.17), 0.034, 0.06, Vector3(PI / 2, 0, 0), gm)         # eyepiece
+    _cyl(Vector3(0, 0.12, -0.27), 0.03, 0.01, Vector3(PI / 2, 0, 0), glass)      # front lens
+    _cyl(Vector3(0, 0.12, 0.205), 0.026, 0.01, Vector3(PI / 2, 0, 0), glass)     # rear lens
+    _cyl(Vector3(0, 0.19, -0.03), 0.014, 0.03, Vector3(0, 0, 0), gm)             # elevation turret
+    _cyl(Vector3(0.042, 0.12, -0.03), 0.014, 0.03, Vector3(0, 0, PI / 2), gm)    # windage turret
+    _box(gun, Vector3(0.02, 0.02, 0.04), Vector3(0.035, 0.05, 0.04), tanm)       # bolt handle
+    _box(gun, Vector3(0.036, 0.13, 0.05), Vector3(0, -0.1, 0.0), pl)             # magazine
+    _box(gun, Vector3(0.036, 0.12, 0.05), Vector3(0, -0.09, 0.14), pl)           # grip
+    _box(gun, Vector3(0.055, 0.1, 0.34), Vector3(0, -0.01, 0.32), tanm)          # stock
     _hands(-0.38)
     _add_muzzle(-0.92, 0.035)
 
@@ -573,19 +596,24 @@ func _build_shotgun_model() -> void:
     _hands(-0.36)
     _add_muzzle(-0.5, 0.04)
 
-# HAWK DMR: medium barrel, scope and long magazine.
+# HAWK DMR: tan handguard, muzzle brake, flat optic on a rail, angled magazine and cheek-riser stock.
 func _build_marksman_model() -> void:
     var gm := _mat(Color(0.19, 0.2, 0.23))
     var pl := _mat(Color(0.09, 0.1, 0.11))
     var tanm := _mat(Color(0.72, 0.6, 0.38))
-    _box(gun, Vector3(0.05, 0.075, 0.3), Vector3(0, 0.03, 0.0), gm)
-    _box(gun, Vector3(0.03, 0.03, 0.46), Vector3(0, 0.035, -0.44), pl)
-    _box(gun, Vector3(0.035, 0.05, 0.16), Vector3(0, 0.1, -0.02), pl)
-    _box(gun, Vector3(0.034, 0.17, 0.05), Vector3(0, -0.1, 0.0), pl)
-    _box(gun, Vector3(0.038, 0.12, 0.05), Vector3(0, -0.09, 0.13), pl)
-    _box(gun, Vector3(0.05, 0.08, 0.26), Vector3(0, -0.01, 0.3), tanm)
-    _hands(-0.34)
-    _add_muzzle(-0.7, 0.035)
+    _box(gun, Vector3(0.05, 0.075, 0.3), Vector3(0, 0.03, 0.0), gm)              # receiver
+    _box(gun, Vector3(0.03, 0.02, 0.22), Vector3(0, 0.075, -0.02), gm)           # top rail
+    _box(gun, Vector3(0.034, 0.05, 0.14), Vector3(0, 0.1, -0.04), pl)            # flat optic
+    _box(gun, Vector3(0.058, 0.058, 0.24), Vector3(0, 0.02, -0.28), tanm)        # tan handguard
+    _box(gun, Vector3(0.026, 0.026, 0.36), Vector3(0, 0.03, -0.56), pl)          # medium barrel
+    _box(gun, Vector3(0.04, 0.04, 0.07), Vector3(0, 0.03, -0.74), gm)            # muzzle brake
+    var mag := _box(gun, Vector3(0.034, 0.17, 0.05), Vector3(0, -0.1, -0.02), pl)  # magazine
+    mag.rotation.x = 0.15
+    _box(gun, Vector3(0.038, 0.12, 0.05), Vector3(0, -0.09, 0.13), pl)           # grip
+    _box(gun, Vector3(0.05, 0.08, 0.26), Vector3(0, -0.01, 0.3), tanm)           # stock
+    _box(gun, Vector3(0.04, 0.03, 0.12), Vector3(0, 0.03, 0.22), gm)             # cheek riser
+    _hands(-0.3)
+    _add_muzzle(-0.8, 0.03)
 
 func _swap_to(id: String) -> void:
     if id == cur or swap_t > 0.0 or dead:
