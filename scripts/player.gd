@@ -9,8 +9,14 @@ const JUMP_V := 9.0
 const SLIDE_T := 0.95
 const SLIDE_V := 11.5
 const MAX_GREN := 2
+const PRIMARIES := ["assault", "smg", "lmg", "sniper", "shotgun", "marksman"]
 const WEAPONS := {
-    "rifle": {"name": "AR", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
+    "assault": {"name": "VANGUARD", "cat": "Assault", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
+    "smg": {"name": "VIPER", "cat": "SMG", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
+    "lmg": {"name": "WARDEN", "cat": "LMG", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
+    "sniper": {"name": "LONGSHOT", "cat": "Sniper", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
+    "shotgun": {"name": "BREACHER", "cat": "Shotgun", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
+    "marksman": {"name": "HAWK", "cat": "Marksman", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
     "pistol": {"name": "PISTOL", "mag": 12, "max": 60, "rate": 0.2, "auto": false, "spread": 0.008, "dmg": 1.2, "hip": Vector3(0.17, -0.14, -0.38), "ads": Vector3(0.0, -0.09, -0.2)},
 }
 
@@ -52,8 +58,9 @@ var shots := 0
 var idle := 9.0
 var bloom := 0.0
 var flash_t := 0.0
-var cur := "rifle"
-var slots := {"rifle": {"mag": 30, "res": 120}, "pistol": {"mag": 12, "res": 60}}
+static var primary_pick := "assault"   # chosen in the loadout page
+var cur := "assault"
+var slots := {}
 var swap_t := 0.0
 var swap_to := ""
 var grenades := MAX_GREN
@@ -111,7 +118,7 @@ func _box(par: Node3D, sz: Vector3, pos: Vector3, m: Material) -> MeshInstance3D
 func _build_gun() -> void:
     gun = Node3D.new()
     cam.add_child(gun)
-    _build_rifle_model()
+    _reset_slots()
 
 func _build_rifle_model() -> void:
     var gm := _mat(Color(0.19, 0.2, 0.23))
@@ -276,9 +283,9 @@ func _weapon(dt: float, sliding: bool) -> void:
     if hud.take("reload"):
         _start_reload()
     if hud.take("swap"):
-        _swap_to("pistol" if cur == "rifle" else "rifle")
+        _swap_to("pistol" if cur != "pistol" else primary_pick)
     if hud.take("w1"):
-        _swap_to("rifle")
+        _swap_to(primary_pick)
     if hud.take("w2"):
         _swap_to("pistol")
     if hud.take("gren"):
@@ -449,10 +456,14 @@ func _clear_model() -> void:
         c.queue_free()
 
 func _build_model(id: String) -> void:
-    if id == "pistol":
-        _build_pistol_model()
-    else:
-        _build_rifle_model()
+    match id:
+        "pistol": _build_pistol_model()
+        "smg": _build_smg_model()
+        "lmg": _build_lmg_model()
+        "sniper": _build_sniper_model()
+        "shotgun": _build_shotgun_model()
+        "marksman": _build_marksman_model()
+        _: _build_rifle_model()
 
 func _build_pistol_model() -> void:
     var gm := _mat(Color(0.19, 0.2, 0.23))
@@ -478,6 +489,104 @@ func _build_pistol_model() -> void:
     flash_mesh.visible = false
     muzzle.add_child(flash_mesh)
 
+# Shared hands and forearms for the new models (same layout as the AR).
+func _hands(fore_z: float) -> void:
+    var glove := _mat(Color(0.09, 0.1, 0.12))
+    var sleeve := _mat(Color(0.27, 0.33, 0.18))
+    _box(gun, Vector3(0.09, 0.09, 0.16), Vector3(-0.02, -0.07, fore_z), glove)
+    _box(gun, Vector3(0.1, 0.1, 0.34), Vector3(-0.09, -0.16, fore_z + 0.24), sleeve)
+    _box(gun, Vector3(0.09, 0.1, 0.1), Vector3(0.0, -0.1, 0.12), glove)
+    _box(gun, Vector3(0.1, 0.1, 0.3), Vector3(0.08, -0.18, 0.3), sleeve)
+
+# Muzzle point and muzzle flash for the new models.
+func _add_muzzle(z: float, y: float) -> void:
+    muzzle = Marker3D.new()
+    muzzle.position = Vector3(0, y, z)
+    gun.add_child(muzzle)
+    flash_mesh = MeshInstance3D.new()
+    var sm := SphereMesh.new()
+    sm.radius = 0.05
+    sm.height = 0.1
+    flash_mesh.mesh = sm
+    flash_mesh.material_override = _mat(Color(1, 0.75, 0.3), true)
+    flash_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    flash_mesh.visible = false
+    muzzle.add_child(flash_mesh)
+
+# VIPER SMG: short and compact with a long magazine.
+func _build_smg_model() -> void:
+    var gm := _mat(Color(0.19, 0.2, 0.23))
+    var pl := _mat(Color(0.09, 0.1, 0.11))
+    var tanm := _mat(Color(0.72, 0.6, 0.38))
+    _box(gun, Vector3(0.06, 0.072, 0.24), Vector3(0, 0.03, 0.0), gm)
+    _box(gun, Vector3(0.034, 0.034, 0.2), Vector3(0, 0.03, -0.3), pl)
+    _box(gun, Vector3(0.05, 0.02, 0.2), Vector3(0, 0.07, -0.12), gm)
+    _box(gun, Vector3(0.03, 0.22, 0.05), Vector3(0, -0.11, 0.0), pl)
+    _box(gun, Vector3(0.04, 0.12, 0.05), Vector3(0, -0.09, 0.14), pl)
+    _box(gun, Vector3(0.04, 0.05, 0.14), Vector3(0, 0.0, 0.26), tanm)
+    _hands(-0.36)
+    _add_muzzle(-0.42, 0.03)
+
+# WARDEN LMG: heavy receiver, shrouded barrel, bipod and side ammo box.
+func _build_lmg_model() -> void:
+    var gm := _mat(Color(0.19, 0.2, 0.23))
+    var pl := _mat(Color(0.09, 0.1, 0.11))
+    var tanm := _mat(Color(0.72, 0.6, 0.38))
+    _box(gun, Vector3(0.09, 0.1, 0.34), Vector3(0, 0.03, 0.0), gm)
+    _box(gun, Vector3(0.075, 0.075, 0.3), Vector3(0, 0.03, -0.3), pl)
+    _box(gun, Vector3(0.03, 0.03, 0.2), Vector3(0, 0.03, -0.6), gm)
+    _box(gun, Vector3(0.012, 0.13, 0.012), Vector3(-0.03, -0.07, -0.56), pl)
+    _box(gun, Vector3(0.012, 0.13, 0.012), Vector3(0.03, -0.07, -0.56), pl)
+    _box(gun, Vector3(0.1, 0.12, 0.14), Vector3(0.07, -0.01, 0.0), tanm)
+    _box(gun, Vector3(0.04, 0.12, 0.05), Vector3(0, -0.1, 0.12), pl)
+    _box(gun, Vector3(0.05, 0.08, 0.22), Vector3(0, -0.01, 0.32), pl)
+    _hands(-0.42)
+    _add_muzzle(-0.72, 0.03)
+
+# LONGSHOT sniper: long barrel, scope and bolt handle.
+func _build_sniper_model() -> void:
+    var gm := _mat(Color(0.19, 0.2, 0.23))
+    var pl := _mat(Color(0.09, 0.1, 0.11))
+    var tanm := _mat(Color(0.72, 0.6, 0.38))
+    _box(gun, Vector3(0.05, 0.07, 0.28), Vector3(0, 0.03, 0.0), gm)
+    _box(gun, Vector3(0.028, 0.028, 0.7), Vector3(0, 0.035, -0.55), pl)
+    _box(gun, Vector3(0.04, 0.05, 0.22), Vector3(0, 0.1, -0.02), pl)
+    _box(gun, Vector3(0.05, 0.03, 0.03), Vector3(0, 0.075, -0.02), gm)
+    _box(gun, Vector3(0.02, 0.02, 0.04), Vector3(0.035, 0.05, 0.04), tanm)
+    _box(gun, Vector3(0.036, 0.13, 0.05), Vector3(0, -0.1, 0.0), pl)
+    _box(gun, Vector3(0.036, 0.12, 0.05), Vector3(0, -0.09, 0.14), pl)
+    _box(gun, Vector3(0.055, 0.1, 0.34), Vector3(0, -0.01, 0.32), tanm)
+    _hands(-0.38)
+    _add_muzzle(-0.92, 0.035)
+
+# BREACHER shotgun: wide receiver, fat barrel, tube magazine and pump.
+func _build_shotgun_model() -> void:
+    var gm := _mat(Color(0.19, 0.2, 0.23))
+    var pl := _mat(Color(0.09, 0.1, 0.11))
+    var tanm := _mat(Color(0.72, 0.6, 0.38))
+    _box(gun, Vector3(0.08, 0.09, 0.26), Vector3(0, 0.03, 0.0), gm)
+    _box(gun, Vector3(0.05, 0.05, 0.36), Vector3(0, 0.04, -0.31), pl)
+    _box(gun, Vector3(0.03, 0.03, 0.42), Vector3(0, -0.01, -0.2), pl)
+    _box(gun, Vector3(0.07, 0.05, 0.12), Vector3(0, -0.01, -0.36), tanm)
+    _box(gun, Vector3(0.04, 0.13, 0.05), Vector3(0, -0.1, 0.1), pl)
+    _box(gun, Vector3(0.05, 0.1, 0.22), Vector3(0, 0.0, 0.33), tanm)
+    _hands(-0.36)
+    _add_muzzle(-0.5, 0.04)
+
+# HAWK DMR: medium barrel, scope and long magazine.
+func _build_marksman_model() -> void:
+    var gm := _mat(Color(0.19, 0.2, 0.23))
+    var pl := _mat(Color(0.09, 0.1, 0.11))
+    var tanm := _mat(Color(0.72, 0.6, 0.38))
+    _box(gun, Vector3(0.05, 0.075, 0.3), Vector3(0, 0.03, 0.0), gm)
+    _box(gun, Vector3(0.03, 0.03, 0.46), Vector3(0, 0.035, -0.44), pl)
+    _box(gun, Vector3(0.035, 0.05, 0.16), Vector3(0, 0.1, -0.02), pl)
+    _box(gun, Vector3(0.034, 0.17, 0.05), Vector3(0, -0.1, 0.0), pl)
+    _box(gun, Vector3(0.038, 0.12, 0.05), Vector3(0, -0.09, 0.13), pl)
+    _box(gun, Vector3(0.05, 0.08, 0.26), Vector3(0, -0.01, 0.3), tanm)
+    _hands(-0.34)
+    _add_muzzle(-0.7, 0.035)
+
 func _swap_to(id: String) -> void:
     if id == cur or swap_t > 0.0 or dead:
         return
@@ -500,13 +609,12 @@ func _do_swap_switch() -> void:
 func _reset_slots() -> void:
     swap_t = 0.0
     swap_to = ""
-    slots = {"rifle": {"mag": 30, "res": 120}, "pistol": {"mag": 12, "res": 60}}
-    if cur != "rifle":
-        cur = "rifle"
-        _clear_model()
-        _build_rifle_model()
-    mag = 30
-    reserve = 120
+    cur = primary_pick
+    slots = {cur: {"mag": int(WEAPONS[cur]["mag"]), "res": int(WEAPONS[cur]["max"])}, "pistol": {"mag": 12, "res": 60}}
+    _clear_model()
+    _build_model(cur)
+    mag = int(WEAPONS[cur]["mag"])
+    reserve = int(WEAPONS[cur]["max"])
     reloading = false
     gren_cd = 0.0
     grenades = MAX_GREN

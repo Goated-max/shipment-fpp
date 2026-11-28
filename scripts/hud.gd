@@ -520,18 +520,69 @@ func _build_mapsel() -> void:
 
 var loadout: ColorRect
 var lo_vals := {}      # row id -> Label showing the equipped item
+var lo_primary_btn: Button
+var lo_primary_pick: ColorRect
+
+func _lo_primary_row(box: Control) -> void:
+    var pc := PanelContainer.new()
+    pc.custom_minimum_size = Vector2(320, 64)
+    var vb := VBoxContainer.new()
+    pc.add_child(vb)
+    _lbl(vb, "PRIMARY  (tap to change)", 14, HORIZONTAL_ALIGNMENT_LEFT, Color(1, 1, 1, 0.6))
+    lo_primary_btn = Button.new()
+    lo_primary_btn.flat = true
+    lo_primary_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+    lo_primary_btn.focus_mode = Control.FOCUS_NONE
+    lo_primary_btn.add_theme_font_size_override("font_size", 22)
+    lo_primary_btn.pressed.connect(_open_primary)
+    vb.add_child(lo_primary_btn)
+    box.add_child(pc)
+
+func _build_primary_pick() -> void:
+    lo_primary_pick = _overlay(Color(0.03, 0.07, 0.13, 0.94))
+    var sc := ScrollContainer.new()
+    sc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    lo_primary_pick.add_child(sc)
+    var vb := VBoxContainer.new()
+    vb.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+    vb.add_theme_constant_override("separation", 10)
+    sc.add_child(vb)
+    _lbl(vb, "PRIMARY WEAPON", 36, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 0.7, 0))
+    for gid in Player.PRIMARIES:
+        var w: Dictionary = Player.WEAPONS[gid]
+        _lbl(vb, String(w["cat"]).to_upper(), 16, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 1, 1, 0.6))
+        _button_in(vb, String(w["name"]), _pick_primary.bind(gid))
+    _button_in(vb, "BACK", _close_primary)
+    lo_primary_pick.hide()
+
+func _open_primary() -> void:
+    loadout.hide()
+    lo_primary_pick.show()
+
+func _close_primary() -> void:
+    lo_primary_pick.hide()
+    loadout.show()
+
+func _pick_primary(gid: String) -> void:
+    Player.primary_pick = gid
+    if player != null:
+        player._reset_slots()
+    _refresh_loadout()
+    lo_primary_pick.hide()
+    loadout.show()
 
 func _build_loadout() -> void:
     loadout = _overlay(Color(0.03, 0.07, 0.13, 0.94))
     var lc := _center(loadout)
     _lbl(lc, "LOADOUT", 46, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 0.7, 0))
-    _lo_row(lc, "primary", "PRIMARY")
+    _lo_primary_row(lc)
     _lo_row(lc, "secondary", "SECONDARY")
     _lo_row(lc, "gren1", "GRENADE 1")
     _lo_row(lc, "gren2", "GRENADE 2")
     _lo_row(lc, "perk", "SPECIAL PERK")
     _button_in(lc, "BACK", _close_loadout)
     loadout.hide()
+    _build_primary_pick()
 
 func _lo_row(box: Control, id: String, title: String) -> void:
     var pc := PanelContainer.new()
@@ -543,7 +594,7 @@ func _lo_row(box: Control, id: String, title: String) -> void:
     box.add_child(pc)
 
 func _refresh_loadout() -> void:
-    (lo_vals["primary"] as Label).text = Player.WEAPONS["rifle"]["name"]
+    lo_primary_btn.text = Player.WEAPONS[Player.primary_pick]["name"]
     (lo_vals["secondary"] as Label).text = Player.WEAPONS["pistol"]["name"]
     (lo_vals["gren1"] as Label).text = "FRAG GRENADE"
     (lo_vals["gren2"] as Label).text = "FRAG GRENADE"
