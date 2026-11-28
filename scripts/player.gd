@@ -14,9 +14,9 @@ const WEAPONS := {
     "assault": {"name": "VANGUARD", "cat": "Assault", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
     "smg": {"name": "VIPER", "cat": "SMG", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
     "lmg": {"name": "WARDEN", "cat": "LMG", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
-    "sniper": {"name": "LONGSHOT", "cat": "Sniper", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
+    "sniper": {"name": "LONGSHOT", "cat": "Sniper", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.12, 0.0)},
     "shotgun": {"name": "BREACHER", "cat": "Shotgun", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
-    "marksman": {"name": "HAWK", "cat": "Marksman", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
+    "marksman": {"name": "HAWK", "cat": "Marksman", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.11, -0.088)},
     "pistol": {"name": "PISTOL", "mag": 12, "max": 60, "rate": 0.2, "auto": false, "spread": 0.008, "dmg": 1.2, "hip": Vector3(0.17, -0.14, -0.38), "ads": Vector3(0.0, -0.09, -0.2)},
 }
 
@@ -233,7 +233,7 @@ func _physics_process(dt: float) -> void:
     cam.rotation.z = roll
     head.rotation.x = pitch + recoil_p
     fov = lerpf(fov, 86.0 if sliding else (84.0 if sprint else 75.0), 1.0 - exp(-8.0 * dt))
-    var fv := lerpf(fov, 52.0, ads_t)
+    var fv := lerpf(fov, _ads_fov(), ads_t)
     if absf(cam.fov - fv) > 0.01:
         cam.fov = fv
     _weapon(dt, sliding)
@@ -318,6 +318,10 @@ func _weapon(dt: float, sliding: bool) -> void:
     var a := ads_t
     var hip: Vector3 = WEAPONS[cur]["hip"]
     var adsp: Vector3 = WEAPONS[cur]["ads"]
+    var scoped := cur == "sniper" or cur == "marksman"
+    for n in scope_body:
+        n.visible = not (scoped and ads_t > 0.6)
+    hud.set_scope(scoped and ads_t > 0.9)
     var x := lerpf(lerpf(hip.x, hip.x - 0.08, sp_t), adsp.x, a)
     var y := lerpf(lerpf(hip.y, hip.y - 0.04, sp_t), adsp.y, a)
     var z := lerpf(lerpf(hip.z, hip.z + 0.08, sp_t), adsp.z, a)
@@ -453,6 +457,7 @@ func respawn() -> void:
 func _clear_model() -> void:
     rparts.clear()
     rrest.clear()
+    scope_body = []
     for c in gun.get_children():
         gun.remove_child(c)
         c.queue_free()
@@ -545,8 +550,21 @@ func _build_lmg_model() -> void:
     _hands(-0.42)
     _add_muzzle(-0.72, 0.03)
 
+# See-through lens glass.
+func _glass_mat() -> StandardMaterial3D:
+    var m := StandardMaterial3D.new()
+    m.albedo_color = Color(0.3, 0.6, 0.75, 0.2)
+    m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    m.disable_fog = true
+    m.cull_mode = BaseMaterial3D.CULL_DISABLED
+    return m
+
+# Scope body parts (tube, bells, eyepiece, turrets, mounts) that are hidden while looking through the scope.
+func _scope_part(n: Node3D) -> void:
+    scope_body.append(n)
+
 # Cylinder piece for scope parts. rot is in radians: (PI/2, 0, 0) lays it along Z, (0, 0, PI/2) along X.
-func _cyl(pos: Vector3, r: float, h: float, rot: Vector3, m: Material) -> void:
+func _cyl(pos: Vector3, r: float, h: float, rot: Vector3, m: Material) -> MeshInstance3D:
     var cm := CylinderMesh.new()
     cm.top_radius = r
     cm.bottom_radius = r
@@ -559,24 +577,25 @@ func _cyl(pos: Vector3, r: float, h: float, rot: Vector3, m: Material) -> void:
     mi.rotation = rot
     mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     gun.add_child(mi)
+    return mi
 
 # LONGSHOT sniper: long barrel, a real scope with lenses and turrets, bolt handle.
 func _build_sniper_model() -> void:
     var gm := _mat(Color(0.19, 0.2, 0.23))
     var pl := _mat(Color(0.09, 0.1, 0.11))
     var tanm := _mat(Color(0.72, 0.6, 0.38))
-    var glass := _mat(Color(0.25, 0.5, 0.65))
+    var glass := _glass_mat()
     _box(gun, Vector3(0.05, 0.07, 0.28), Vector3(0, 0.03, 0.0), gm)              # receiver
     _box(gun, Vector3(0.028, 0.028, 0.7), Vector3(0, 0.035, -0.55), pl)          # long barrel
-    _box(gun, Vector3(0.02, 0.05, 0.04), Vector3(0, 0.085, -0.33), gm)           # front scope mount
-    _box(gun, Vector3(0.02, 0.05, 0.04), Vector3(0, 0.085, -0.16), gm)           # rear scope mount
-    _cyl(Vector3(0, 0.12, -0.26), 0.022, 0.3, Vector3(PI / 2, 0, 0), pl)         # scope tube
-    _cyl(Vector3(0, 0.12, -0.4), 0.03, 0.05, Vector3(PI / 2, 0, 0), gm)          # objective bell
-    _cyl(Vector3(0, 0.12, -0.12), 0.026, 0.04, Vector3(PI / 2, 0, 0), gm)        # eyepiece
-    _cyl(Vector3(0, 0.12, -0.43), 0.026, 0.01, Vector3(PI / 2, 0, 0), glass)     # front lens
-    _cyl(Vector3(0, 0.12, -0.102), 0.02, 0.008, Vector3(PI / 2, 0, 0), glass)    # rear lens
-    _cyl(Vector3(0, 0.155, -0.26), 0.012, 0.025, Vector3(0, 0, 0), gm)           # elevation turret
-    _cyl(Vector3(0.034, 0.12, -0.26), 0.012, 0.025, Vector3(0, 0, PI / 2), gm)   # windage turret
+    _scope_part(_box(gun, Vector3(0.02, 0.05, 0.04), Vector3(0, 0.085, -0.33), gm))  # front scope mount
+    _scope_part(_box(gun, Vector3(0.02, 0.05, 0.04), Vector3(0, 0.085, -0.16), gm))  # rear scope mount
+    _scope_part(_cyl(Vector3(0, 0.12, -0.26), 0.022, 0.3, Vector3(PI / 2, 0, 0), pl))   # scope tube
+    _scope_part(_cyl(Vector3(0, 0.12, -0.4), 0.03, 0.05, Vector3(PI / 2, 0, 0), gm))    # objective bell
+    _scope_part(_cyl(Vector3(0, 0.12, -0.12), 0.026, 0.04, Vector3(PI / 2, 0, 0), gm))  # eyepiece
+    _cyl(Vector3(0, 0.12, -0.43), 0.026, 0.01, Vector3(PI / 2, 0, 0), glass)            # front lens (see-through)
+    _cyl(Vector3(0, 0.12, -0.102), 0.02, 0.008, Vector3(PI / 2, 0, 0), glass)           # rear lens (see-through)
+    _scope_part(_cyl(Vector3(0, 0.155, -0.26), 0.012, 0.025, Vector3(0, 0, 0), gm))     # elevation turret
+    _scope_part(_cyl(Vector3(0.034, 0.12, -0.26), 0.012, 0.025, Vector3(0, 0, PI / 2), gm))  # windage turret
     _rpart("bolt", _box(gun, Vector3(0.02, 0.02, 0.04), Vector3(0.035, 0.05, 0.04), tanm))  # bolt handle
     _rpart("mag", _box(gun, Vector3(0.036, 0.13, 0.05), Vector3(0, -0.1, 0.0), pl))  # magazine
     _box(gun, Vector3(0.036, 0.12, 0.05), Vector3(0, -0.09, 0.14), pl)           # grip
@@ -604,15 +623,15 @@ func _build_marksman_model() -> void:
     var gm := _mat(Color(0.19, 0.2, 0.23))
     var pl := _mat(Color(0.09, 0.1, 0.11))
     var tanm := _mat(Color(0.72, 0.6, 0.38))
-    var glass := _mat(Color(0.25, 0.5, 0.65))
+    var glass := _glass_mat()
     _box(gun, Vector3(0.05, 0.075, 0.3), Vector3(0, 0.03, 0.0), gm)              # receiver
     _box(gun, Vector3(0.03, 0.02, 0.22), Vector3(0, 0.075, -0.02), gm)           # top rail
-    _box(gun, Vector3(0.036, 0.05, 0.12), Vector3(0, 0.11, -0.1), pl)            # optic body
-    _cyl(Vector3(0, 0.11, -0.18), 0.02, 0.05, Vector3(PI / 2, 0, 0), pl)         # sunshade
-    _cyl(Vector3(0, 0.11, -0.207), 0.017, 0.006, Vector3(PI / 2, 0, 0), glass)   # front lens
-    _cyl(Vector3(0, 0.11, -0.03), 0.018, 0.03, Vector3(PI / 2, 0, 0), gm)        # eyepiece
-    _cyl(Vector3(0, 0.11, -0.012), 0.014, 0.006, Vector3(PI / 2, 0, 0), glass)   # rear lens
-    _cyl(Vector3(0, 0.14, -0.1), 0.01, 0.02, Vector3(0, 0, 0), gm)               # turret knob
+    _scope_part(_box(gun, Vector3(0.036, 0.05, 0.12), Vector3(0, 0.11, -0.1), pl))      # optic body
+    _scope_part(_cyl(Vector3(0, 0.11, -0.18), 0.02, 0.05, Vector3(PI / 2, 0, 0), pl))   # sunshade
+    _cyl(Vector3(0, 0.11, -0.207), 0.017, 0.006, Vector3(PI / 2, 0, 0), glass)          # front lens (see-through)
+    _scope_part(_cyl(Vector3(0, 0.11, -0.03), 0.018, 0.03, Vector3(PI / 2, 0, 0), gm))  # eyepiece
+    _cyl(Vector3(0, 0.11, -0.012), 0.014, 0.006, Vector3(PI / 2, 0, 0), glass)          # rear lens (see-through)
+    _scope_part(_cyl(Vector3(0, 0.14, -0.1), 0.01, 0.02, Vector3(0, 0, 0), gm))         # turret knob
     _box(gun, Vector3(0.058, 0.058, 0.24), Vector3(0, 0.02, -0.28), tanm)        # tan handguard
     _box(gun, Vector3(0.026, 0.026, 0.36), Vector3(0, 0.03, -0.56), pl)          # medium barrel
     _box(gun, Vector3(0.04, 0.04, 0.07), Vector3(0, 0.03, -0.74), gm)            # muzzle brake
@@ -629,6 +648,7 @@ func _build_marksman_model() -> void:
 # ---------- reload animations: each weapon moves its own named parts (p goes 0 -> 1 over the reload) ----------
 var rparts := {}   # part name -> node that moves during a reload
 var rrest := {}    # part name -> [position, rotation] at rest
+var scope_body: Array = []   # scope parts hidden while aiming through the scope
 
 func _rpart(pname: String, n: Node3D) -> void:
     rparts[pname] = n
@@ -722,8 +742,10 @@ func build_preview(holder: Node3D, id: String) -> void:
     var s_rest = rrest
     var s_muzzle = muzzle
     var s_flash = flash_mesh
+    var s_scope = scope_body
     rparts = {}
     rrest = {}
+    scope_body = []
     for c in holder.get_children():
         holder.remove_child(c)
         c.queue_free()
@@ -734,6 +756,17 @@ func build_preview(holder: Node3D, id: String) -> void:
     rrest = s_rest
     muzzle = s_muzzle
     flash_mesh = s_flash
+    scope_body = s_scope
+
+# Field of view when aiming: scoped weapons zoom in.
+func _ads_fov() -> float:
+    match cur:
+        "sniper":
+            return 20.0
+        "marksman":
+            return 30.0
+        _:
+            return 52.0
 
 func _reset_slots() -> void:
     swap_t = 0.0

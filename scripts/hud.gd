@@ -745,6 +745,7 @@ func _build_menu_death() -> void:
     _build_loadout()
     _build_mapsel()
     _build_pause()
+    _build_scope()
 
 # ---------- layout (position + scale per element, saved to user://) ----------
 func _rect(id: String) -> Rect2:
@@ -913,6 +914,42 @@ func _leave() -> void:
     get_tree().paused = false
     Net.reset()
     get_tree().reload_current_scene()
+
+var scope_ov: Control
+var scope_on := false
+
+func _build_scope() -> void:
+    scope_ov = Control.new()
+    scope_ov.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    scope_ov.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    root.add_child(scope_ov)
+    scope_ov.draw.connect(_draw_scope)
+    scope_ov.resized.connect(func() -> void: scope_ov.queue_redraw())
+    scope_ov.hide()
+
+# Thin scope reticle at the screen centre, which is exactly where bullets go.
+func _draw_scope() -> void:
+    var c := scope_ov.size * 0.5
+    var r := minf(scope_ov.size.x, scope_ov.size.y) * 0.3
+    var dark := Color(0.02, 0.02, 0.02, 0.9)
+    scope_ov.draw_arc(c, r, 0.0, TAU, 160, dark, 4.0)
+    scope_ov.draw_line(Vector2(c.x - r, c.y), Vector2(c.x - 14.0, c.y), dark, 2.0)
+    scope_ov.draw_line(Vector2(c.x + 14.0, c.y), Vector2(c.x + r, c.y), dark, 2.0)
+    scope_ov.draw_line(Vector2(c.x, c.y - r), Vector2(c.x, c.y - 14.0), dark, 2.0)
+    scope_ov.draw_line(Vector2(c.x, c.y + 14.0), Vector2(c.x, c.y + r), dark, 2.0)
+    for f in [0.33, 0.66]:
+        var t: float = r * f
+        scope_ov.draw_line(Vector2(c.x - 8.0, c.y + t), Vector2(c.x + 8.0, c.y + t), dark, 2.0)
+        scope_ov.draw_line(Vector2(c.x - 8.0, c.y - t), Vector2(c.x + 8.0, c.y - t), dark, 2.0)
+    scope_ov.draw_circle(c, 2.5, dark)
+
+func set_scope(on: bool) -> void:
+    if on == scope_on:
+        return
+    scope_on = on
+    scope_ov.visible = on
+    if on:
+        scope_ov.queue_redraw()
 
 func _deploy() -> void:
     menu.hide()
