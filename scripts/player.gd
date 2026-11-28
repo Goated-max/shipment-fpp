@@ -272,6 +272,8 @@ func _start_reload() -> void:
     if reloading or mag >= int(WEAPONS[cur]["mag"]) or reserve <= 0:
         return
     reloading = true
+    mag_dropped = false
+    throw_land = _land_point()
     reload_t = 0.0
     ads = false
 
@@ -641,6 +643,8 @@ func _build_marksman_model() -> void:
     _add_muzzle(-0.8, 0.03)
 
 # ---------- reload animations: each weapon moves its own named parts (p goes 0 -> 1 over the reload) ----------
+var mag_dropped := false     # the thrown magazine has been spawned this reload
+var throw_land := Vector3.ZERO   # world point where the thrown magazine lands
 var rparts := {}   # part name -> node that moves during a reload
 var rrest := {}    # part name -> [position, rotation] at rest
 var scope_body: Array = []   # scope parts hidden while aiming through the scope
@@ -699,26 +703,59 @@ func _vis(pname: String, on: bool) -> void:
 
 # VANGUARD (AR) reload: left hand pulls the magazine out, grabs a spare from the pouch and seats it.
 func _pose_assault(p: float) -> Vector3:
-    var M := Vector3(0, -0.17, 0.0)          # magazine in the well
-    var Mp := Vector3(0, -0.39, 0.06)        # magazine pulled out
-    var Md := Vector3(0, -1.0, 0.1)          # magazine dropped out of view
-    var S := Vector3(-0.2, -0.2, -0.3)       # spare magazine in the left pouch
-    var Rg := Vector3(-0.02, -0.07, -0.42)   # left hand at rest
-    var G := Vector3(-0.04, -0.16, -0.02)    # left hand on the magazine
-    var Sg := Vector3(-0.16, -0.19, -0.3)    # left hand on the spare
-    var F := Vector3(-0.07, -0.09, 0.24)     # forearm offset from the hand
-    var gt := [0.0, 0.18, 0.5, 0.62, 0.74, 0.88, 1.0]
-    var gv := [Rg, G, G, Sg, Sg, G, Rg]
+    var M := Vector3(0, -0.17, 0.0)              # magazine in the well
+    var S := Vector3(-0.2, -0.2, -0.3)           # spare magazine's spot before the hand brings it (hidden)
+    var Rg := Vector3(-0.02, -0.07, -0.42)       # left hand at rest
+    var G := Vector3(-0.04, -0.16, -0.02)        # left hand on the magazine
+    var P := Vector3(-0.04, -0.3, 0.04)          # hand pulls the magazine down
+    var T := Vector3(-0.25, -0.2, -0.5)          # hand flings the magazine forward-left
+    var B := Vector3(0.05, -0.95, 0.2)           # hand drops down to the body, out of view
+    var F := Vector3(-0.07, -0.09, 0.24)         # forearm offset from the hand
+    var D := Vector3(0.04, -0.01, 0.02)          # magazine offset from the hand while held
+    var land := gun.global_transform.affine_inverse() * throw_land
+    var PH := P + D
+    var A := (land + PH) * 0.5 + Vector3(0, 0.25, 0)   # top of the throw arc
+    var gt := [0.0, 0.18, 0.3, 0.36, 0.45, 0.6, 0.66, 0.84, 0.9, 1.0]
+    var gv := [Rg, G, P, P, T, B, B, G, G, Rg]
     var av := []
+    var sv := []
     for v in gv:
         av.append(v + F)
+        sv.append(v + D)
     _abs_keys("lglove", p, gt, gv)
     _abs_keys("larm", p, gt, av)
-    _abs_keys("mag", p, [0.0, 0.2, 0.35, 0.5, 0.88, 1.0], [M, Mp, Mp, Md, M, M])
-    _vis("mag", p < 0.42 or p >= 0.88)
-    _abs_keys("spare", p, [0.0, 0.45, 0.66, 0.86, 1.0], [S, S, S, M, M])
-    _vis("spare", p >= 0.45 and p < 0.88)
+    _abs_keys("mag", p, [0.0, 0.18, 0.3, 0.36, 0.42, 0.48, 0.86, 1.0], [M, M, PH, PH, A, land, M, M])
+    _vis("mag", p < 0.48 or p >= 0.86)
+    if p >= 0.48 and not mag_dropped:
+        mag_dropped = true
+        _drop_world_mag()
+    _abs_keys("spare", p, [0.0, 0.6, 0.66, 0.84, 0.86, 1.0], [S, sv[5], sv[6], sv[7], M, M])
+    _vis("spare", p >= 0.6 and p < 0.86)
     return Vector3(0, 0, 0.12 * _hold(p, 0.0, 0.2, 0.5, 0.7))
+
+# A point on the ground in front and to the left of the camera, where the thrown magazine lands.
+func _land_point() -> Vector3:
+    var f := -cam.global_transform.basis.z
+    var flat := Vector3(f.x, 0.0, f.z).normalized()
+    var left := -cam.global_transform.basis.x
+    var p := cam.global_position + flat * 1.2 + left * 0.45
+    return Vector3(p.x, main.ground_height(p.x, p.z) + 0.1, p.z)
+
+# The thrown magazine stays in the world for 10 seconds, then goes away.
+func _drop_world_mag() -> void:
+    var d := MeshInstance3D.new()
+    var bm := BoxMesh.new()
+    bm.size = Vector3(0.034, 0.2, 0.05)
+    d.mesh = bm
+    d.material_override = _mat(Color(0.09, 0.1, 0.11))
+    main.add_child(d)
+    d.global_transform = Transform3D(Basis.from_euler(Vector3(0.0, 0.0, 1.5)), throw_land)
+    _free_later(d)
+
+func _free_later(d: Node3D) -> void:
+    await get_tree().create_timer(10.0).timeout
+    if is_instance_valid(d):
+        d.queue_free()
 
 func _reload_pose(p: float) -> Vector3:
     match cur:
