@@ -134,11 +134,12 @@ func _build_rifle_model() -> void:
     _box(gun, Vector3(0.046, 0.07, 0.18), Vector3(0, 0.0, 0.28), pl)
     _box(gun, Vector3(0.034, 0.1, 0.045), Vector3(0, -0.1, 0.12), pl)
     _rpart("mag", _box(gun, Vector3(0.034, 0.2, 0.05), Vector3(0, -0.17, 0.0), pl))
+    _rpart("spare", _box(gun, Vector3(0.034, 0.2, 0.05), Vector3(-0.2, -0.2, -0.3), pl))
     _box(gun, Vector3(0.04, 0.02, 0.08), Vector3(0, 0.085, -0.12), gm)
     _box(gun, Vector3(0.066, 0.006, 0.06), Vector3(0, 0.125, -0.12), gm)
     _box(gun, Vector3(0.007, 0.007, 0.003), Vector3(0, 0.1, -0.09), _mat(Color(1, 0.16, 0.16), true))
-    _box(gun, Vector3(0.09, 0.09, 0.16), Vector3(-0.02, -0.07, -0.42), glove)
-    _box(gun, Vector3(0.1, 0.1, 0.34), Vector3(-0.09, -0.16, -0.18), sleeve)
+    _rpart("lglove", _box(gun, Vector3(0.09, 0.09, 0.16), Vector3(-0.02, -0.07, -0.42), glove))
+    _rpart("larm", _box(gun, Vector3(0.1, 0.1, 0.34), Vector3(-0.09, -0.16, -0.18), sleeve))
     _box(gun, Vector3(0.09, 0.1, 0.1), Vector3(0.0, -0.1, 0.12), glove)
     _box(gun, Vector3(0.1, 0.1, 0.3), Vector3(0.08, -0.18, 0.3), sleeve)
     muzzle = Marker3D.new()
@@ -663,7 +664,7 @@ func _reset_parts() -> void:
         var r: Array = rrest[k]
         n.position = r[0]
         n.rotation = r[1]
-        n.visible = k != "shell"
+        n.visible = k != "shell" and k != "spare"
 
 func _move(pname: String, p: float, a: float, b: float, c: float, d: float, off: Vector3) -> void:
     if not rparts.has(pname):
@@ -678,6 +679,47 @@ func _turn(pname: String, p: float, a: float, b: float, c: float, d: float, rot:
     (rparts[pname] as Node3D).rotation = r[1] + rot * _hold(p, a, b, c, d)
 
 # Moves this weapon's parts for progress p and returns the gun-level tilt to add this frame.
+# Moves smoothly through keyframes (times ascending, vals the same length) and returns the position at p.
+func _keys(p: float, times: Array, vals: Array) -> Vector3:
+    if p <= float(times[0]):
+        return vals[0]
+    for i in range(1, times.size()):
+        if p <= float(times[i]):
+            var t := _ss(clampf((p - float(times[i - 1])) / (float(times[i]) - float(times[i - 1])), 0.0, 1.0))
+            return (vals[i - 1] as Vector3).lerp(vals[i], t)
+    return vals[vals.size() - 1]
+
+func _abs_keys(pname: String, p: float, times: Array, vals: Array) -> void:
+    if rparts.has(pname):
+        (rparts[pname] as Node3D).position = _keys(p, times, vals)
+
+func _vis(pname: String, on: bool) -> void:
+    if rparts.has(pname):
+        (rparts[pname] as Node3D).visible = on
+
+# VANGUARD (AR) reload: left hand pulls the magazine out, grabs a spare from the pouch and seats it.
+func _pose_assault(p: float) -> Vector3:
+    var M := Vector3(0, -0.17, 0.0)          # magazine in the well
+    var Mp := Vector3(0, -0.39, 0.06)        # magazine pulled out
+    var Md := Vector3(0, -1.0, 0.1)          # magazine dropped out of view
+    var S := Vector3(-0.2, -0.2, -0.3)       # spare magazine in the left pouch
+    var Rg := Vector3(-0.02, -0.07, -0.42)   # left hand at rest
+    var G := Vector3(-0.04, -0.16, -0.02)    # left hand on the magazine
+    var Sg := Vector3(-0.16, -0.19, -0.3)    # left hand on the spare
+    var F := Vector3(-0.07, -0.09, 0.24)     # forearm offset from the hand
+    var gt := [0.0, 0.18, 0.5, 0.62, 0.74, 0.88, 1.0]
+    var gv := [Rg, G, G, Sg, Sg, G, Rg]
+    var av := []
+    for v in gv:
+        av.append(v + F)
+    _abs_keys("lglove", p, gt, gv)
+    _abs_keys("larm", p, gt, av)
+    _abs_keys("mag", p, [0.0, 0.2, 0.35, 0.5, 0.88, 1.0], [M, Mp, Mp, Md, M, M])
+    _vis("mag", p < 0.42 or p >= 0.88)
+    _abs_keys("spare", p, [0.0, 0.45, 0.66, 0.86, 1.0], [S, S, S, M, M])
+    _vis("spare", p >= 0.45 and p < 0.88)
+    return Vector3(0, 0, 0.12 * _hold(p, 0.0, 0.2, 0.5, 0.7))
+
 func _reload_pose(p: float) -> Vector3:
     match cur:
         "pistol":
@@ -705,6 +747,8 @@ func _reload_pose(p: float) -> Vector3:
             _move("mag", p, 0.0, 0.3, 0.65, 0.95, Vector3(0, -0.2, 0.0))
             _move("charge", p, 0.8, 0.85, 0.9, 0.98, Vector3(0, 0, 0.08))
             return Vector3(0, 0, 0.1 * _hold(p, 0.0, 0.3, 0.65, 0.95))
+        "assault":
+            return _pose_assault(p)
         _:
             _move("mag", p, 0.0, 0.3, 0.6, 0.9, Vector3(0, -0.22, 0.04))
             _turn("mag", p, 0.0, 0.3, 0.6, 0.9, Vector3(0.2, 0, 0))
