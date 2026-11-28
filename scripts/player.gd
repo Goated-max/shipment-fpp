@@ -12,7 +12,7 @@ const MAX_GREN := 2
 const PRIMARIES := ["assault", "smg", "lmg", "sniper", "shotgun", "marksman"]
 const WEAPONS := {
     "assault": {"name": "VANGUARD", "cat": "Assault", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21), "move": 0.9, "ads_speed": 9.0},
-    "smg": {"name": "VIPER", "cat": "SMG", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
+    "smg": {"name": "VIPER", "cat": "SMG", "mag": 30, "max": 120, "rate": 0.07, "auto": true, "spread": 0.012, "dmg": 0.83, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21), "move": 1.05, "ads_speed": 13.0, "fo_start": 15.0, "fo_end": 45.0},
     "lmg": {"name": "WARDEN", "cat": "LMG", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
     "sniper": {"name": "LONGSHOT", "cat": "Sniper", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.12, 0.0)},
     "shotgun": {"name": "BREACHER", "cat": "Shotgun", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
@@ -262,6 +262,20 @@ func _stance() -> String:
         return "CROUCH"
     return "STAND"
 
+# Damage multiplier by distance: full damage up to fo_start, fading to 40% by fo_end.
+# Weapons without these keys don't fall off.
+func _falloff(d: float) -> float:
+    var w: Dictionary = WEAPONS[cur]
+    if not w.has("fo_start"):
+        return 1.0
+    var st := float(w["fo_start"])
+    var en := float(w["fo_end"])
+    if d <= st:
+        return 1.0
+    if d >= en:
+        return 0.4
+    return lerpf(1.0, 0.4, (d - st) / (en - st))
+
 func _spread() -> float:
     var sp := minf(1.0, Vector2(velocity.x, velocity.z).length() / SPRINT) * 0.012
     var air := 0.0 if is_on_floor() else 0.03
@@ -392,7 +406,7 @@ func _shoot() -> void:
     if not bh.is_empty():
         var bt: float = bh["t"]
         end = org + d * bt
-        main.hit_bot(bh["bot"], bh["zone"], float(WEAPONS[cur]["dmg"]))
+        main.hit_bot(bh["bot"], bh["zone"], float(WEAPONS[cur]["dmg"]) * _falloff(bt))
     elif not wr.is_empty():
         main.impact(wr["position"], wr["normal"])
     main.spawn_tracer(muzzle.global_position, end)

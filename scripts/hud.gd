@@ -549,8 +549,12 @@ var pp_pitch := -0.1
 var pp_dist := 1.4
 var pp_specs: PanelContainer
 var pp_spec_bars := {}   # key -> [ProgressBar, Label]
-# Rough ratings out of 10 for the VANGUARD specs panel. Tune these as the numbers change.
-var spec_rating := {"damage": 6.0, "fire": 7.0, "accuracy": 6.0, "mobility": 6.0, "range": 8.0, "control": 7.0}
+# Rough ratings out of 10 per weapon for the specs panel. Tune these as the numbers change.
+# Weapons without an entry here don't show the panel yet.
+var spec_rating := {
+    "assault": {"damage": 6.0, "fire": 7.0, "accuracy": 6.0, "mobility": 6.0, "range": 8.0, "control": 7.0},
+    "smg": {"damage": 5.0, "fire": 8.0, "accuracy": 6.0, "mobility": 8.0, "range": 4.0, "control": 6.0},
+}
 
 func _mini_btn(box: Control, text: String, cb: Callable) -> void:
     var b := Button.new()
@@ -619,9 +623,9 @@ func _show_preview(gid: String) -> void:
     pp_cur = gid
     var w: Dictionary = Player.WEAPONS[gid]
     pp_name.text = "%s   .   %s" % [w["name"], String(w["cat"]).to_upper()]
-    pp_specs.visible = gid == "assault"
-    if gid == "assault":
-        _fill_specs()
+    pp_specs.visible = spec_rating.has(gid)
+    if spec_rating.has(gid):
+        _fill_specs(gid)
     if player != null and pp_holder != null:
         player.build_preview(pp_holder, gid)
 
@@ -653,21 +657,26 @@ func _build_specs(parent: Control) -> void:
         pp_spec_bars[pair[0]] = [pb, val]
     pp_specs.hide()
 
-# Fills the specs panel from the VANGUARD's current numbers.
-func _fill_specs() -> void:
-    var w: Dictionary = Player.WEAPONS["assault"]
+# Fills the specs panel from the weapon's current numbers.
+func _fill_specs(gid: String) -> void:
+    var w: Dictionary = Player.WEAPONS[gid]
+    var dmg := float(w["dmg"])
     var rate := float(w["rate"])
+    var rng := "120 m, no drop-off"
+    if w.has("fo_start"):
+        rng = "falloff %d-%d m" % [int(w["fo_start"]), int(w["fo_end"])]
     var txt := {
-        "damage": "24 body / 48 head",                              # from main.hit_bot
+        "damage": "%d body / %d head" % [roundi(24.0 * dmg), roundi(48.0 * dmg)],   # 24 / 48 base from main.hit_bot
         "fire": "%d RPM" % roundi(60.0 / rate),
         "accuracy": "hip spread %.3f" % float(w["spread"]),
-        "mobility": "%.1f m/s walk" % (Player.WALK * float(w["move"])),
-        "range": "120 m, no drop-off",                              # from the fire ray length
-        "control": "%.4f rise / shot" % 0.0065,                     # recoil gain in player.gd
+        "mobility": "%.1f m/s walk" % (Player.WALK * float(w.get("move", 1.0))),
+        "range": rng,
+        "control": "%.4f rise / shot" % 0.0065,                                     # recoil gain in player.gd
     }
+    var rt: Dictionary = spec_rating[gid]
     for k in pp_spec_bars:
         var pair: Array = pp_spec_bars[k]
-        (pair[0] as ProgressBar).value = float(spec_rating[k])
+        (pair[0] as ProgressBar).value = float(rt[k])
         (pair[1] as Label).text = String(txt[k])
 
 func _equip_preview() -> void:
