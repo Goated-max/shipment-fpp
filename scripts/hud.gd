@@ -559,6 +559,7 @@ var spec_rating := {
     "lmg": {"damage": 6.0, "fire": 7.0, "accuracy": 4.0, "mobility": 3.0, "range": 7.0, "control": 4.0},
     "sniper": {"damage": 9.0, "fire": 2.0, "accuracy": 9.0, "mobility": 3.0, "range": 9.0, "control": 8.0},
     "marksman": {"damage": 6.0, "fire": 4.0, "accuracy": 8.0, "mobility": 5.0, "range": 6.0, "control": 6.0},
+    "shotgun": {"damage": 9.0, "fire": 3.0, "accuracy": 5.0, "mobility": 8.0, "range": 4.0, "control": 4.0},
 }
 
 func _mini_btn(box: Control, text: String, cb: Callable) -> void:
@@ -680,8 +681,11 @@ func _fill_specs(gid: String) -> void:
         fire_txt = "semi-auto, %d RPM" % roundi(60.0 / rate)
     if rate >= 0.3:
         fire_txt = "1 shot / %.1f s" % rate
+    var pel_txt := ""
+    if int(w.get("pellets", 1)) > 1:
+        pel_txt = " x%d" % int(w["pellets"])
     var txt := {
-        "damage": "U %d  L %d  H %d" % [roundi(up), roundi(lo), roundi(hd)],   # upper, lower, head
+        "damage": "U %d  L %d  H %d%s" % [roundi(up), roundi(lo), roundi(hd), pel_txt],   # upper, lower, head
         "fire": fire_txt,
         "accuracy": "hip spread %.3f" % float(w["spread"]),
         "mobility": "%.1f m/s walk" % (Player.WALK * float(w.get("move", 1.0))),

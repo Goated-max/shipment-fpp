@@ -220,10 +220,11 @@ func _zone_dmg(zone: String, zdmg: Dictionary) -> float:
         return float(zdmg[zone])
     return zone_base(zone)
 
-func hit_bot(b, zone: String, mult := 1.0, zdmg: Dictionary = {}) -> void:
-    shots_hit += 1
-    if zone == "head":
-        headshots += 1
+func hit_bot(b, zone: String, mult := 1.0, zdmg: Dictionary = {}, stat := true) -> void:
+    if stat:
+        shots_hit += 1
+        if zone == "head":
+            headshots += 1
     if b is RemotePlayer:
         hud.hitmark(zone == "head")
         play("hitm", 0.8)

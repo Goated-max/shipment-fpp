@@ -14,8 +14,8 @@ const WEAPONS := {
     "assault": {"name": "VANGUARD", "cat": "Assault", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21), "move": 0.9, "ads_speed": 9.0},
     "smg": {"name": "VIPER", "cat": "SMG", "mag": 30, "max": 120, "rate": 0.07, "auto": true, "spread": 0.012, "dmg": 0.83, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21), "move": 1.05, "ads_speed": 13.0, "fo_start": 15.0, "fo_end": 45.0},
     "lmg": {"name": "WARDEN", "cat": "LMG", "mag": 100, "max": 200, "rate": 0.09, "auto": true, "spread": 0.016, "dmg": 1.1, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21), "move": 0.8, "ads_speed": 6.5, "recoil": 1.3, "reload": 3.0, "fo_start": 25.0, "fo_end": 70.0},
-    "sniper": {"name": "LONGSHOT", "cat": "Sniper", "mag": 5, "max": 0, "rate": 0.5, "auto": false, "spread": 0.004, "dmg": 1.0, "zdmg": {"upper": 96.0, "head": 96.0, "lower": 90.0}, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.12, 0.0), "move": 0.85, "ads_move": 0.4, "ads_speed": 4.5, "recoil": 0.5, "reload": 2.5},
-    "shotgun": {"name": "BREACHER", "cat": "Shotgun", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
+    "sniper": {"name": "LONGSHOT", "cat": "Sniper", "mag": 5, "max": 5, "rate": 0.5, "auto": false, "spread": 0.004, "dmg": 1.0, "zdmg": {"upper": 96.0, "head": 96.0, "lower": 90.0}, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.12, 0.0), "move": 0.85, "ads_move": 0.4, "ads_speed": 4.5, "recoil": 0.5, "reload": 2.5},
+    "shotgun": {"name": "BREACHER", "cat": "Shotgun", "mag": 6, "max": 24, "rate": 0.8, "auto": false, "spread": 0.0, "pellets": 12, "pspread": 0.06, "range": 25.0, "dmg": 1.0, "zdmg": {"upper": 9.0, "head": 12.0, "lower": 5.0}, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21), "move": 1.0, "recoil": 1.4, "reload": 3.0, "fo_start": 6.0, "fo_end": 16.0},
     "marksman": {"name": "HAWK", "cat": "Marksman", "mag": 10, "max": 60, "rate": 0.14, "auto": false, "spread": 0.008, "dmg": 1.0, "zdmg": {"upper": 48.0, "head": 96.0, "lower": 30.0}, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.11, -0.088), "move": 0.95, "recoil": 1.0, "reload": 2.2, "fo_start": 30.0, "fo_end": 80.0},
     "pistol": {"name": "PISTOL", "mag": 12, "max": 60, "rate": 0.2, "auto": false, "spread": 0.008, "dmg": 1.2, "hip": Vector3(0.17, -0.14, -0.38), "ads": Vector3(0.0, -0.09, -0.2)},
 }
@@ -52,6 +52,7 @@ var ads := false
 var ads_t := 0.0
 var bolt_t := 0.0      # sniper bolt cycle + scope-back-in timer
 var was_scope := false
+var pump_t := 0.0     # shotgun pump cycle timer
 var sp_t := 0.0
 var cd := 0.0
 var kick := 0.0
@@ -393,6 +394,9 @@ func _weapon(dt: float, sliding: bool) -> void:
     gun.rotation = Vector3(rx, ry, rz)
     if bolt_t > 0.0 and rparts.has("bolt"):
         (rparts["bolt"] as Node3D).position = (rrest["bolt"][0] as Vector3) + Vector3(0, 0, 0.1 * sin(PI * (1.0 - bolt_t / 0.5)))
+    if pump_t > 0.0 and not reloading and rparts.has("pump"):
+        pump_t -= dt
+        (rparts["pump"] as Node3D).position = (rrest["pump"][0] as Vector3) + Vector3(0, 0, 0.08 * sin(PI * (1.0 - maxf(pump_t, 0.0) / 0.5)))
     var fire_now: bool = firing and not sniper and (bool(WEAPONS[cur]["auto"]) or not was_firing)
     was_firing = firing
     if fire_now and not reloading and cd <= 0.0 and swap_t <= 0.0:
@@ -415,26 +419,39 @@ func _shoot() -> void:
     shots += 1
     idle = 0.0
     hud.set_ammo(mag, reserve)
+    var pellets := int(WEAPONS[cur].get("pellets", 1))
     var s := _spread()
-    var d := cam.global_transform.basis * Vector3((randf() - 0.5) * 2.0 * s, (randf() - 0.5) * 2.0 * s, -1.0).normalized()
+    if pellets > 1:
+        s = float(WEAPONS[cur]["pspread"]) * (1.0 - 0.6 * ads_t)
+    var rng := float(WEAPONS[cur].get("range", 120.0))
+    var zdmg: Dictionary = WEAPONS[cur].get("zdmg", {})
     var org := cam.global_position
-    var wr: Dictionary = main.world_ray(org, org + d * 120.0)
-    var wd := 120.0
-    if not wr.is_empty():
-        var wp: Vector3 = wr["position"]
-        wd = org.distance_to(wp)
-    var bh: Dictionary = main.bot_ray(org, d, wd)
-    var end := org + d * wd
-    if not bh.is_empty():
-        var bt: float = bh["t"]
-        end = org + d * bt
-        main.hit_bot(bh["bot"], bh["zone"], float(WEAPONS[cur]["dmg"]) * _falloff(bt), WEAPONS[cur].get("zdmg", {}))
-    elif not wr.is_empty():
-        main.impact(wr["position"], wr["normal"])
-    main.spawn_tracer(muzzle.global_position, end)
+    var counted := false
+    var traced := false
+    for i in pellets:
+        var d := cam.global_transform.basis * Vector3((randf() - 0.5) * 2.0 * s, (randf() - 0.5) * 2.0 * s, -1.0).normalized()
+        var wr: Dictionary = main.world_ray(org, org + d * rng)
+        var wd := rng
+        if not wr.is_empty():
+            var wp: Vector3 = wr["position"]
+            wd = org.distance_to(wp)
+        var bh: Dictionary = main.bot_ray(org, d, wd)
+        var end := org + d * wd
+        if not bh.is_empty():
+            var bt: float = bh["t"]
+            end = org + d * bt
+            main.hit_bot(bh["bot"], bh["zone"], float(WEAPONS[cur]["dmg"]) * _falloff(bt), zdmg, not counted)
+            counted = true
+        elif not wr.is_empty() and i < 3:
+            main.impact(wr["position"], wr["normal"])
+        if not traced:
+            main.spawn_tracer(muzzle.global_position, end)
+            traced = true
     main.play("shot", 0.8)
     flash_mesh.visible = true
     flash_t = 0.045
+    if rparts.has("pump"):
+        pump_t = 0.5
     var aa := 1.0 - 0.55 * ads_t
     kick = minf(1.0, kick + 0.7 * aa)
     recoil_p = minf(0.35, recoil_p + (0.0065 + minf(float(shots), 24.0) * 0.0002) * aa * float(WEAPONS[cur].get("recoil", 1.0)))
@@ -884,6 +901,7 @@ func _reset_slots() -> void:
     swap_t = 0.0
     bolt_t = 0.0
     was_scope = false
+    pump_t = 0.0
     swap_to = ""
     cur = primary_pick
     slots = {cur: {"mag": int(WEAPONS[cur]["mag"]), "res": int(WEAPONS[cur]["max"])}, "pistol": {"mag": 12, "res": 60}}
