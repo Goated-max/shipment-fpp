@@ -558,6 +558,7 @@ var spec_rating := {
     "smg": {"damage": 5.0, "fire": 8.0, "accuracy": 6.0, "mobility": 8.0, "range": 4.0, "control": 6.0},
     "lmg": {"damage": 6.0, "fire": 7.0, "accuracy": 4.0, "mobility": 3.0, "range": 7.0, "control": 4.0},
     "sniper": {"damage": 9.0, "fire": 2.0, "accuracy": 9.0, "mobility": 3.0, "range": 9.0, "control": 8.0},
+    "marksman": {"damage": 6.0, "fire": 4.0, "accuracy": 8.0, "mobility": 5.0, "range": 6.0, "control": 6.0},
 }
 
 func _mini_btn(box: Control, text: String, cb: Callable) -> void:
@@ -675,6 +676,8 @@ func _fill_specs(gid: String) -> void:
     if w.has("fo_start"):
         rng = "falloff %d-%d m" % [int(w["fo_start"]), int(w["fo_end"])]
     var fire_txt := "%d RPM" % roundi(60.0 / rate)
+    if not bool(w["auto"]):
+        fire_txt = "semi-auto, %d RPM" % roundi(60.0 / rate)
     if rate >= 0.3:
         fire_txt = "1 shot / %.1f s" % rate
     var txt := {

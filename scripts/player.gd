@@ -16,7 +16,7 @@ const WEAPONS := {
     "lmg": {"name": "WARDEN", "cat": "LMG", "mag": 100, "max": 200, "rate": 0.09, "auto": true, "spread": 0.016, "dmg": 1.1, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21), "move": 0.8, "ads_speed": 6.5, "recoil": 1.3, "reload": 3.0, "fo_start": 25.0, "fo_end": 70.0},
     "sniper": {"name": "LONGSHOT", "cat": "Sniper", "mag": 5, "max": 0, "rate": 0.5, "auto": false, "spread": 0.004, "dmg": 1.0, "zdmg": {"upper": 96.0, "head": 96.0, "lower": 90.0}, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.12, 0.0), "move": 0.85, "ads_move": 0.4, "ads_speed": 4.5, "recoil": 0.5, "reload": 2.5},
     "shotgun": {"name": "BREACHER", "cat": "Shotgun", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
-    "marksman": {"name": "HAWK", "cat": "Marksman", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.11, -0.088)},
+    "marksman": {"name": "HAWK", "cat": "Marksman", "mag": 10, "max": 60, "rate": 0.14, "auto": false, "spread": 0.008, "dmg": 1.0, "zdmg": {"upper": 48.0, "head": 96.0, "lower": 30.0}, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.11, -0.088), "move": 0.95, "recoil": 1.0, "reload": 2.2, "fo_start": 30.0, "fo_end": 80.0},
     "pistol": {"name": "PISTOL", "mag": 12, "max": 60, "rate": 0.2, "auto": false, "spread": 0.008, "dmg": 1.2, "hip": Vector3(0.17, -0.14, -0.38), "ads": Vector3(0.0, -0.09, -0.2)},
 }
 
