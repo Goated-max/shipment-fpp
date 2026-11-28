@@ -11,7 +11,7 @@ const SLIDE_V := 11.5
 const MAX_GREN := 2
 const PRIMARIES := ["assault", "smg", "lmg", "sniper", "shotgun", "marksman"]
 const WEAPONS := {
-    "assault": {"name": "VANGUARD", "cat": "Assault", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
+    "assault": {"name": "VANGUARD", "cat": "Assault", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21), "move": 0.9, "ads_speed": 9.0},
     "smg": {"name": "VIPER", "cat": "SMG", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
     "lmg": {"name": "WARDEN", "cat": "LMG", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
     "sniper": {"name": "LONGSHOT", "cat": "Sniper", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.12, 0.0)},
@@ -210,6 +210,7 @@ func _physics_process(dt: float) -> void:
             sp = SPRINT
         else:
             sp = WALK * mvmag
+        sp *= float(WEAPONS[cur].get("move", 1.0))
         hv = hv.lerp(Vector2(wish.x, wish.z) * sp, 1.0 - exp(-(40.0 if is_on_floor() else 4.0) * dt))
     velocity.x = hv.x
     velocity.z = hv.y
@@ -307,7 +308,7 @@ func _weapon(dt: float, sliding: bool) -> void:
         bloom = lerpf(bloom, 0.0, 1.0 - exp(-5.0 * dt))
     if idle > 0.25:
         shots = 0
-    ads_t = lerpf(ads_t, 1.0 if ads else 0.0, 1.0 - exp(-12.0 * dt))
+    ads_t = lerpf(ads_t, 1.0 if ads else 0.0, 1.0 - exp(-float(WEAPONS[cur].get("ads_speed", 12.0)) * dt))
     var use_s := sprint and is_on_floor() and not firing and idle > 0.25 and not reloading and not ads
     sp_t = lerpf(sp_t, 1.0 if use_s else 0.0, 1.0 - exp(-(9.0 if use_s else 30.0) * dt))
     var sw_off := 0.0

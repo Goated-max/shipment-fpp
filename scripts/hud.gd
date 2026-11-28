@@ -547,6 +547,10 @@ var pp_cur := "assault"
 var pp_yaw := 0.6
 var pp_pitch := -0.1
 var pp_dist := 1.4
+var pp_specs: PanelContainer
+var pp_spec_bars := {}   # key -> [ProgressBar, Label]
+# Rough ratings out of 10 for the VANGUARD specs panel. Tune these as the numbers change.
+var spec_rating := {"damage": 6.0, "fire": 7.0, "accuracy": 6.0, "mobility": 6.0, "range": 8.0, "control": 7.0}
 
 func _mini_btn(box: Control, text: String, cb: Callable) -> void:
     var b := Button.new()
@@ -615,8 +619,56 @@ func _show_preview(gid: String) -> void:
     pp_cur = gid
     var w: Dictionary = Player.WEAPONS[gid]
     pp_name.text = "%s   .   %s" % [w["name"], String(w["cat"]).to_upper()]
+    pp_specs.visible = gid == "assault"
+    if gid == "assault":
+        _fill_specs()
     if player != null and pp_holder != null:
         player.build_preview(pp_holder, gid)
+
+func _build_specs(parent: Control) -> void:
+    pp_specs = PanelContainer.new()
+    pp_specs.custom_minimum_size = Vector2(380, 0)
+    pp_specs.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 12)
+    parent.add_child(pp_specs)
+    var vb := VBoxContainer.new()
+    vb.add_theme_constant_override("separation", 6)
+    pp_specs.add_child(vb)
+    _lbl(vb, "SPECS", 22, HORIZONTAL_ALIGNMENT_LEFT, Color(1, 0.7, 0))
+    for pair in [["damage", "Damage"], ["fire", "Fire Rate"], ["accuracy", "Accuracy"],
+            ["mobility", "Mobility"], ["range", "Range"], ["control", "Control"]]:
+        var row := HBoxContainer.new()
+        vb.add_child(row)
+        var nm := _lbl(row, pair[1], 15, HORIZONTAL_ALIGNMENT_LEFT)
+        nm.custom_minimum_size = Vector2(110, 0)
+        var pb := ProgressBar.new()
+        pb.min_value = 0.0
+        pb.max_value = 10.0
+        pb.show_percentage = false
+        pb.custom_minimum_size = Vector2(110, 14)
+        pb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+        pb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        row.add_child(pb)
+        var val := _lbl(row, "", 14, HORIZONTAL_ALIGNMENT_LEFT, Color(1, 1, 1, 0.85))
+        val.custom_minimum_size = Vector2(140, 0)
+        pp_spec_bars[pair[0]] = [pb, val]
+    pp_specs.hide()
+
+# Fills the specs panel from the VANGUARD's current numbers.
+func _fill_specs() -> void:
+    var w: Dictionary = Player.WEAPONS["assault"]
+    var rate := float(w["rate"])
+    var txt := {
+        "damage": "24 body / 48 head",                              # from main.hit_bot
+        "fire": "%d RPM" % roundi(60.0 / rate),
+        "accuracy": "hip spread %.3f" % float(w["spread"]),
+        "mobility": "%.1f m/s walk" % (Player.WALK * float(w["move"])),
+        "range": "120 m, no drop-off",                              # from the fire ray length
+        "control": "%.4f rise / shot" % 0.0065,                     # recoil gain in player.gd
+    }
+    for k in pp_spec_bars:
+        var pair: Array = pp_spec_bars[k]
+        (pair[0] as ProgressBar).value = float(spec_rating[k])
+        (pair[1] as Label).text = String(txt[k])
 
 func _equip_preview() -> void:
     _pick_primary(pp_cur)
@@ -652,7 +704,13 @@ func _build_primary_pick() -> void:
     svc.size_flags_vertical = Control.SIZE_EXPAND_FILL
     svc.mouse_filter = Control.MOUSE_FILTER_STOP
     svc.gui_input.connect(_preview_input)
-    rc.add_child(svc)
+    var wrap := Control.new()
+    wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    rc.add_child(wrap)
+    svc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    wrap.add_child(svc)
+    _build_specs(wrap)
     _build_preview_world(svc)
     _lbl(rc, "Drag to rotate", 14, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 1, 1, 0.6))
     var row := HBoxContainer.new()
