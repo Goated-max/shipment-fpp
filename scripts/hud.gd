@@ -546,7 +546,7 @@ func _build_menu_death() -> void:
     dk_lbl = _lbl(dc, "KILLS 0", 24, HORIZONTAL_ALIGNMENT_CENTER)
     _button_in(dc, "RESPAWN", _on_respawn)
     death.hide()
-    menu = _overlay(Color(0.03, 0.07, 0.13, 0.92))
+    menu = _overlay(Color(0.03, 0.07, 0.13, 0.55))
     var mc := _center(menu)
     _lbl(mc, "SHIPMENT FPP", 52, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 0.7, 0))
     _lbl(mc, "Left thumb moves (push past the ring for SPRINT LOCK), right thumb looks.\nHolding FIRE blocks sprint and keeps ADS.\nDesktop: WASD, Shift sprint, Space jump, C slide, R reload, arrows look.", 18, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 1, 1, 0.75))
