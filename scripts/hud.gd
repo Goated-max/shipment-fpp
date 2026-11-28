@@ -634,6 +634,7 @@ func _build_menu_death() -> void:
     _button_in(mc, "CUSTOMIZE HUD LAYOUT", _start_edit.bind(true))
     _build_loadout()
     _build_mapsel()
+    _build_pause()
 
 # ---------- layout (position + scale per element, saved to user://) ----------
 func _rect(id: String) -> Rect2:
@@ -679,6 +680,7 @@ func _apply_all() -> void:
             c.scale = Vector2.ONE
             c.position = _default_pos(id)
     edit_btn.position = Vector2(vp.x - 122.0, 10.0)
+    pause_btn.position = Vector2(vp.x - 240.0, 10.0)
     panel.position = Vector2(vp.x - 280.0, 56.0)
     pick_lbl.position = Vector2(vp.x * 0.5 - 120.0, vp.y * 0.62)
     board.position = Vector2(vp.x - 260.0, 200.0)
@@ -714,6 +716,7 @@ func _start_edit(from_main_menu: bool) -> void:
     _clear_input()
     menu.hide()
     edit_btn.hide()
+    pause_btn.hide()
     panel.show()
     board.hide()
     sel = ""
@@ -735,6 +738,7 @@ func _stop_edit() -> void:
         menu.show()
     else:
         edit_btn.show()
+        pause_btn.show()
         get_tree().paused = false
 
 func _select(id: String) -> void:
@@ -751,9 +755,59 @@ func _on_size(v: float) -> void:
         return
     _place(sel, (els[sel] as Control).position, v)
 
+var pause_btn: Button
+var pause_menu: ColorRect
+
+func _build_pause() -> void:
+    pause_btn = Button.new()
+    pause_btn.text = "PAUSE"
+    pause_btn.focus_mode = Control.FOCUS_NONE
+    pause_btn.size = Vector2(110, 38)
+    root.add_child(pause_btn)
+    pause_btn.pressed.connect(_open_pause)
+    pause_btn.hide()
+    pause_menu = _overlay(Color(0.03, 0.07, 0.13, 0.8))
+    var pc := _center(pause_menu)
+    _lbl(pc, "PAUSED", 46, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 0.7, 0))
+    _lbl(pc, "Camera sensitivity", 18, HORIZONTAL_ALIGNMENT_CENTER)
+    var ss := HSlider.new()
+    ss.min_value = 0.3
+    ss.max_value = 2.5
+    ss.step = 0.05
+    ss.value = sens
+    ss.custom_minimum_size = Vector2(320, 36)
+    ss.value_changed.connect(func(v: float) -> void: sens = v)
+    pc.add_child(ss)
+    _button_in(pc, "RESUME", _resume)
+    _button_in(pc, "LEAVE MATCH", _leave)
+    pause_menu.hide()
+
+func _open_pause() -> void:
+    if menu.visible or death.visible or editing or lobby.visible:
+        return
+    if Net.active:
+        pick("NO PAUSE IN MULTIPLAYER")
+        return
+    _clear_input()
+    pause_menu.show()
+    pause_btn.hide()
+    get_tree().paused = true
+
+func _resume() -> void:
+    pause_menu.hide()
+    pause_btn.show()
+    get_tree().paused = false
+
+func _leave() -> void:
+    pause_menu.hide()
+    get_tree().paused = false
+    Net.reset()
+    get_tree().reload_current_scene()
+
 func _deploy() -> void:
     menu.hide()
     edit_btn.show()
+    pause_btn.show()
     get_tree().paused = false
 
 func _on_respawn() -> void:
@@ -827,6 +881,8 @@ func _clear_input() -> void:
 # ---------- input ----------
 func _over_ui(pos: Vector2) -> bool:
     if edit_btn.visible and edit_btn.get_global_rect().has_point(pos):
+        return true
+    if pause_btn.visible and pause_btn.get_global_rect().has_point(pos):
         return true
     if panel.visible and panel.get_global_rect().has_point(pos):
         return true

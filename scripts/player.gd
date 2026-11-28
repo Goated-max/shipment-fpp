@@ -568,15 +568,15 @@ func _build_sniper_model() -> void:
     var glass := _mat(Color(0.25, 0.5, 0.65))
     _box(gun, Vector3(0.05, 0.07, 0.28), Vector3(0, 0.03, 0.0), gm)              # receiver
     _box(gun, Vector3(0.028, 0.028, 0.7), Vector3(0, 0.035, -0.55), pl)          # long barrel
-    _box(gun, Vector3(0.02, 0.05, 0.04), Vector3(0, 0.07, -0.12), gm)            # front scope mount
-    _box(gun, Vector3(0.02, 0.05, 0.04), Vector3(0, 0.07, 0.06), gm)             # rear scope mount
-    _cyl(Vector3(0, 0.12, -0.03), 0.026, 0.36, Vector3(PI / 2, 0, 0), pl)        # scope tube
-    _cyl(Vector3(0, 0.12, -0.23), 0.04, 0.07, Vector3(PI / 2, 0, 0), gm)         # objective bell
-    _cyl(Vector3(0, 0.12, 0.17), 0.034, 0.06, Vector3(PI / 2, 0, 0), gm)         # eyepiece
-    _cyl(Vector3(0, 0.12, -0.27), 0.03, 0.01, Vector3(PI / 2, 0, 0), glass)      # front lens
-    _cyl(Vector3(0, 0.12, 0.205), 0.026, 0.01, Vector3(PI / 2, 0, 0), glass)     # rear lens
-    _cyl(Vector3(0, 0.19, -0.03), 0.014, 0.03, Vector3(0, 0, 0), gm)             # elevation turret
-    _cyl(Vector3(0.042, 0.12, -0.03), 0.014, 0.03, Vector3(0, 0, PI / 2), gm)    # windage turret
+    _box(gun, Vector3(0.02, 0.05, 0.04), Vector3(0, 0.085, -0.33), gm)           # front scope mount
+    _box(gun, Vector3(0.02, 0.05, 0.04), Vector3(0, 0.085, -0.16), gm)           # rear scope mount
+    _cyl(Vector3(0, 0.12, -0.26), 0.022, 0.3, Vector3(PI / 2, 0, 0), pl)         # scope tube
+    _cyl(Vector3(0, 0.12, -0.4), 0.03, 0.05, Vector3(PI / 2, 0, 0), gm)          # objective bell
+    _cyl(Vector3(0, 0.12, -0.12), 0.026, 0.04, Vector3(PI / 2, 0, 0), gm)        # eyepiece
+    _cyl(Vector3(0, 0.12, -0.43), 0.026, 0.01, Vector3(PI / 2, 0, 0), glass)     # front lens
+    _cyl(Vector3(0, 0.12, -0.102), 0.02, 0.008, Vector3(PI / 2, 0, 0), glass)    # rear lens
+    _cyl(Vector3(0, 0.155, -0.26), 0.012, 0.025, Vector3(0, 0, 0), gm)           # elevation turret
+    _cyl(Vector3(0.034, 0.12, -0.26), 0.012, 0.025, Vector3(0, 0, PI / 2), gm)   # windage turret
     _rpart("bolt", _box(gun, Vector3(0.02, 0.02, 0.04), Vector3(0.035, 0.05, 0.04), tanm))  # bolt handle
     _rpart("mag", _box(gun, Vector3(0.036, 0.13, 0.05), Vector3(0, -0.1, 0.0), pl))  # magazine
     _box(gun, Vector3(0.036, 0.12, 0.05), Vector3(0, -0.09, 0.14), pl)           # grip
@@ -604,16 +604,22 @@ func _build_marksman_model() -> void:
     var gm := _mat(Color(0.19, 0.2, 0.23))
     var pl := _mat(Color(0.09, 0.1, 0.11))
     var tanm := _mat(Color(0.72, 0.6, 0.38))
+    var glass := _mat(Color(0.25, 0.5, 0.65))
     _box(gun, Vector3(0.05, 0.075, 0.3), Vector3(0, 0.03, 0.0), gm)              # receiver
     _box(gun, Vector3(0.03, 0.02, 0.22), Vector3(0, 0.075, -0.02), gm)           # top rail
-    _box(gun, Vector3(0.034, 0.05, 0.14), Vector3(0, 0.1, -0.04), pl)            # flat optic
+    _box(gun, Vector3(0.036, 0.05, 0.12), Vector3(0, 0.11, -0.1), pl)            # optic body
+    _cyl(Vector3(0, 0.11, -0.18), 0.02, 0.05, Vector3(PI / 2, 0, 0), pl)         # sunshade
+    _cyl(Vector3(0, 0.11, -0.207), 0.017, 0.006, Vector3(PI / 2, 0, 0), glass)   # front lens
+    _cyl(Vector3(0, 0.11, -0.03), 0.018, 0.03, Vector3(PI / 2, 0, 0), gm)        # eyepiece
+    _cyl(Vector3(0, 0.11, -0.012), 0.014, 0.006, Vector3(PI / 2, 0, 0), glass)   # rear lens
+    _cyl(Vector3(0, 0.14, -0.1), 0.01, 0.02, Vector3(0, 0, 0), gm)               # turret knob
     _box(gun, Vector3(0.058, 0.058, 0.24), Vector3(0, 0.02, -0.28), tanm)        # tan handguard
     _box(gun, Vector3(0.026, 0.026, 0.36), Vector3(0, 0.03, -0.56), pl)          # medium barrel
     _box(gun, Vector3(0.04, 0.04, 0.07), Vector3(0, 0.03, -0.74), gm)            # muzzle brake
     var mg := _box(gun, Vector3(0.034, 0.17, 0.05), Vector3(0, -0.1, -0.02), pl)  # magazine
     mg.rotation.x = 0.15
     _rpart("mag", mg)
-    _rpart("charge", _box(gun, Vector3(0.012, 0.02, 0.04), Vector3(0.0, 0.1, 0.05), gm))  # charging handle
+    _rpart("charge", _box(gun, Vector3(0.012, 0.02, 0.04), Vector3(0.0, 0.095, 0.05), gm))  # charging handle
     _box(gun, Vector3(0.038, 0.12, 0.05), Vector3(0, -0.09, 0.13), pl)           # grip
     _box(gun, Vector3(0.05, 0.08, 0.26), Vector3(0, -0.01, 0.3), tanm)           # stock
     _box(gun, Vector3(0.04, 0.03, 0.12), Vector3(0, 0.03, 0.22), gm)             # cheek riser
