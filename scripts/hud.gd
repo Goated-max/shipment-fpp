@@ -499,6 +499,46 @@ func _refresh_maps() -> void:
         var v: Array = map_btns[k]
         (v[0] as Button).text = ("> %s <" % v[1]) if k == map_sel else String(v[1])
 
+var loadout: ColorRect
+var lo_vals := {}      # row id -> Label showing the equipped item
+
+func _build_loadout() -> void:
+    loadout = _overlay(Color(0.03, 0.07, 0.13, 0.94))
+    var lc := _center(loadout)
+    _lbl(lc, "LOADOUT", 46, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 0.7, 0))
+    _lo_row(lc, "primary", "PRIMARY")
+    _lo_row(lc, "secondary", "SECONDARY")
+    _lo_row(lc, "gren1", "GRENADE 1")
+    _lo_row(lc, "gren2", "GRENADE 2")
+    _lo_row(lc, "perk", "SPECIAL PERK")
+    _button_in(lc, "BACK", _close_loadout)
+    loadout.hide()
+
+func _lo_row(box: Control, id: String, title: String) -> void:
+    var pc := PanelContainer.new()
+    pc.custom_minimum_size = Vector2(320, 64)
+    var vb := VBoxContainer.new()
+    pc.add_child(vb)
+    _lbl(vb, title, 14, HORIZONTAL_ALIGNMENT_LEFT, Color(1, 1, 1, 0.6))
+    lo_vals[id] = _lbl(vb, "", 22, HORIZONTAL_ALIGNMENT_LEFT)
+    box.add_child(pc)
+
+func _refresh_loadout() -> void:
+    (lo_vals["primary"] as Label).text = Player.WEAPONS["rifle"]["name"]
+    (lo_vals["secondary"] as Label).text = Player.WEAPONS["pistol"]["name"]
+    (lo_vals["gren1"] as Label).text = "FRAG GRENADE"
+    (lo_vals["gren2"] as Label).text = "FRAG GRENADE"
+    (lo_vals["perk"] as Label).text = ""   # empty until the shop is added
+
+func _open_loadout() -> void:
+    _refresh_loadout()
+    menu.hide()
+    loadout.show()
+
+func _close_loadout() -> void:
+    loadout.hide()
+    menu.show()
+
 func _build_menu_death() -> void:
     death = _overlay(Color(0.24, 0.0, 0.0, 0.6))
     var dc := _center(death)
@@ -523,9 +563,11 @@ func _build_menu_death() -> void:
     _map_button(mc, "shipment", "SHIPMENT")
     _map_button(mc, "desert", "DESERT FOUNDRY")
     _refresh_maps()
+    _button_in(mc, "LOADOUT", _open_loadout)
     _button_in(mc, "DEPLOY", _deploy)
     _button_in(mc, "CUSTOMIZE HUD LAYOUT", _start_edit.bind(true))
     _button_in(mc, "MULTIPLAYER (BLUETOOTH)", _open_lobby)
+    _build_loadout()
 
 # ---------- layout (position + scale per element, saved to user://) ----------
 func _rect(id: String) -> Rect2:
