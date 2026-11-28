@@ -547,7 +547,7 @@ var pp_name: Label
 var pp_cur := "assault"
 var pp_yaw := 0.6
 var pp_pitch := -0.1
-var pp_dist := 1.4
+var pp_dist := 1.1
 var pp_specs: PanelContainer
 var pp_spec_bars := {}   # key -> [ProgressBar, Label]
 var pp_spec_ammo: Label
@@ -637,8 +637,14 @@ func _show_preview(gid: String) -> void:
 
 func _build_specs(parent: Control) -> void:
     pp_specs = PanelContainer.new()
-    pp_specs.custom_minimum_size = Vector2(380, 0)
-    pp_specs.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 12)
+    pp_specs.anchor_left = 1.0
+    pp_specs.anchor_right = 1.0
+    pp_specs.anchor_top = 0.0
+    pp_specs.anchor_bottom = 0.0
+    pp_specs.offset_left = -352.0
+    pp_specs.offset_right = -12.0
+    pp_specs.offset_top = 60.0
+    pp_specs.offset_bottom = 380.0
     parent.add_child(pp_specs)
     var vb := VBoxContainer.new()
     vb.add_theme_constant_override("separation", 6)
@@ -648,20 +654,22 @@ func _build_specs(parent: Control) -> void:
             ["mobility", "Mobility"], ["range", "Range"], ["control", "Control"]]:
         var row := HBoxContainer.new()
         vb.add_child(row)
-        var nm := _lbl(row, pair[1], 15, HORIZONTAL_ALIGNMENT_LEFT)
-        nm.custom_minimum_size = Vector2(110, 0)
+        var nm := _lbl(row, pair[1], 14, HORIZONTAL_ALIGNMENT_LEFT)
+        nm.custom_minimum_size = Vector2(104, 0)
         var pb := ProgressBar.new()
         pb.min_value = 0.0
         pb.max_value = 10.0
         pb.show_percentage = false
-        pb.custom_minimum_size = Vector2(110, 14)
+        pb.custom_minimum_size = Vector2(90, 14)
         pb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
         pb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
         row.add_child(pb)
-        var val := _lbl(row, "", 14, HORIZONTAL_ALIGNMENT_LEFT, Color(1, 1, 1, 0.85))
-        val.custom_minimum_size = Vector2(140, 0)
+        var val := _lbl(row, "", 13, HORIZONTAL_ALIGNMENT_LEFT, Color(1, 1, 1, 0.85))
+        val.custom_minimum_size = Vector2(120, 0)
+        val.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
         pp_spec_bars[pair[0]] = [pb, val]
-    pp_spec_ammo = _lbl(vb, "", 14, HORIZONTAL_ALIGNMENT_LEFT, Color(1, 1, 1, 0.7))
+    pp_spec_ammo = _lbl(vb, "", 13, HORIZONTAL_ALIGNMENT_LEFT, Color(1, 1, 1, 0.7))
+    pp_spec_ammo.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     pp_specs.hide()
 
 # Fills the specs panel from the weapon's current numbers.
@@ -707,45 +715,50 @@ func _equip_preview() -> void:
 
 func _build_primary_pick() -> void:
     lo_primary_pick = _overlay(Color(0.03, 0.07, 0.13, 0.94))
-    var hb := HBoxContainer.new()
-    hb.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-    lo_primary_pick.add_child(hb)
+    # left: the gun list, fixed width
     var sc := ScrollContainer.new()
-    sc.custom_minimum_size = Vector2(440, 0)
-    sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
-    hb.add_child(sc)
+    sc.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
+    sc.offset_right = 340.0
+    lo_primary_pick.add_child(sc)
     var vb := VBoxContainer.new()
-    vb.custom_minimum_size = Vector2(420, 0)
+    vb.custom_minimum_size = Vector2(320, 0)
     vb.add_theme_constant_override("separation", 10)
     sc.add_child(vb)
-    _lbl(vb, "PRIMARY WEAPON", 32, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 0.7, 0))
+    _lbl(vb, "PRIMARY WEAPON", 30, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 0.7, 0))
     for gid in Player.PRIMARIES:
         var w: Dictionary = Player.WEAPONS[gid]
         _lbl(vb, String(w["cat"]).to_upper(), 14, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 1, 1, 0.6))
         _button_in(vb, String(w["name"]), _show_preview.bind(gid))
     _button_in(vb, "BACK", _close_primary)
-    var rc := VBoxContainer.new()
-    rc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    rc.size_flags_vertical = Control.SIZE_EXPAND_FILL
-    rc.add_theme_constant_override("separation", 8)
-    hb.add_child(rc)
-    pp_name = _lbl(rc, "", 26, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 0.7, 0))
+    # right: the preview fills everything right of the list
+    var rc := Control.new()
+    rc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    rc.offset_left = 350.0
+    lo_primary_pick.add_child(rc)
+    pp_name = _lbl(rc, "", 24, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 0.7, 0))
+    pp_name.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+    pp_name.offset_top = 10.0
+    pp_name.offset_bottom = 50.0
     var svc := SubViewportContainer.new()
     svc.stretch = true
-    svc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    svc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    svc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    svc.offset_left = 10.0
+    svc.offset_top = 56.0
+    svc.offset_right = -10.0
+    svc.offset_bottom = -120.0
     svc.mouse_filter = Control.MOUSE_FILTER_STOP
     svc.gui_input.connect(_preview_input)
-    var wrap := Control.new()
-    wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
-    rc.add_child(wrap)
-    svc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-    wrap.add_child(svc)
-    _build_specs(wrap)
+    rc.add_child(svc)
     _build_preview_world(svc)
-    _lbl(rc, "Drag to rotate", 14, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 1, 1, 0.6))
+    _build_specs(rc)
+    var hint := _lbl(rc, "Drag to rotate", 14, HORIZONTAL_ALIGNMENT_CENTER, Color(1, 1, 1, 0.6))
+    hint.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+    hint.offset_top = -116.0
+    hint.offset_bottom = -92.0
     var row := HBoxContainer.new()
+    row.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+    row.offset_top = -86.0
+    row.offset_bottom = -22.0
     row.alignment = BoxContainer.ALIGNMENT_CENTER
     row.add_theme_constant_override("separation", 12)
     rc.add_child(row)
