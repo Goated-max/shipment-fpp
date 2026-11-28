@@ -25,6 +25,7 @@ var backend := ""            # "bt" or "tcp"
 var active := false
 var in_match := false
 var map_id := "shipment"
+var chosen_map := "shipment"   # picked by the host in the lobby
 var is_host := false
 var my_id := 0
 var my_name := "PLAYER"
@@ -138,7 +139,7 @@ func start_match() -> void:
     in_match = true
     _end_t = 0.0
     _reset_scores()
-    map_id = "desert" if randf() < 0.5 else "shipment"
+    map_id = chosen_map
     _bcast({"k": "start", "map": map_id})
     started.emit()
 

@@ -2,6 +2,7 @@ class_name Hud
 extends CanvasLayer
 
 signal respawn_requested
+signal map_picked(id: String)
 
 const IDS := ["jump", "slide", "fire", "fire2", "ads", "reload", "gren", "swap", "radar", "ammo", "hpw", "kills", "stance"]
 const BTN_IDS := ["jump", "slide", "fire", "fire2", "ads", "reload", "gren", "swap"]
@@ -476,6 +477,28 @@ func _button_in(box: Control, text: String, cb: Callable) -> void:
     b.pressed.connect(cb)
     box.add_child(b)
 
+var map_btns := {}     # id -> [Button, label], for the menu's map picker
+var map_sel := "shipment"
+
+func _map_button(box: Control, id: String, text: String) -> void:
+    var b := Button.new()
+    b.focus_mode = Control.FOCUS_NONE
+    b.custom_minimum_size = Vector2(320, 48)
+    b.add_theme_font_size_override("font_size", 20)
+    b.pressed.connect(_pick_map.bind(id))
+    box.add_child(b)
+    map_btns[id] = [b, text]
+
+func _pick_map(id: String) -> void:
+    map_sel = id
+    _refresh_maps()
+    map_picked.emit(id)
+
+func _refresh_maps() -> void:
+    for k in map_btns:
+        var v: Array = map_btns[k]
+        (v[0] as Button).text = ("> %s <" % v[1]) if k == map_sel else String(v[1])
+
 func _build_menu_death() -> void:
     death = _overlay(Color(0.24, 0.0, 0.0, 0.6))
     var dc := _center(death)
@@ -496,6 +519,10 @@ func _build_menu_death() -> void:
     ss.custom_minimum_size = Vector2(320, 36)
     ss.value_changed.connect(func(v: float) -> void: sens = v)
     mc.add_child(ss)
+    _lbl(mc, "MAP", 18, HORIZONTAL_ALIGNMENT_CENTER)
+    _map_button(mc, "shipment", "SHIPMENT")
+    _map_button(mc, "desert", "DESERT FOUNDRY")
+    _refresh_maps()
     _button_in(mc, "DEPLOY", _deploy)
     _button_in(mc, "CUSTOMIZE HUD LAYOUT", _start_edit.bind(true))
     _button_in(mc, "MULTIPLAYER (BLUETOOTH)", _open_lobby)

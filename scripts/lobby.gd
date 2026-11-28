@@ -11,6 +11,8 @@ var scan_btn: Button
 var host_btn: Button
 var start_btn: Button
 var found := {}
+var map_box: VBoxContainer
+var map_btns := {}
 var scanning := false
 
 func _ready() -> void:
@@ -44,6 +46,13 @@ func _ready() -> void:
     list_box.custom_minimum_size = Vector2(340, 0)
     vb.add_child(list_box)
     players_lbl = _lbl(vb, "", 16, Color(1, 1, 1, 0.9))
+    map_box = VBoxContainer.new()
+    map_box.add_theme_constant_override("separation", 6)
+    vb.add_child(map_box)
+    _lbl(map_box, "MAP (host picks)", 16, Color(1, 1, 1, 0.9))
+    _map_btn("shipment", "SHIPMENT")
+    _map_btn("desert", "DESERT FOUNDRY")
+    map_box.hide()
     start_btn = _btn(vb, "START MATCH", _start)
     start_btn.hide()
     _btn(vb, "BACK", _back)
@@ -57,6 +66,7 @@ func open() -> void:
     show()
     host_btn.visible = not Net.active
     start_btn.visible = Net.is_host and Net.active
+    map_box.visible = Net.is_host and Net.active
 
 func _lbl(par: Control, text: String, fs: int, col: Color) -> Label:
     var l := Label.new()
@@ -88,6 +98,21 @@ func _host() -> void:
     Net.host_bt()
     host_btn.hide()
     start_btn.show()
+    map_box.show()
+
+func _map_btn(id: String, text: String) -> void:
+    var b := _btn(map_box, text, _pick_map.bind(id))
+    map_btns[id] = [b, text]
+    _refresh_maps()
+
+func _pick_map(id: String) -> void:
+    Net.chosen_map = id
+    _refresh_maps()
+
+func _refresh_maps() -> void:
+    for k in map_btns:
+        var v: Array = map_btns[k]
+        (v[0] as Button).text = ("> %s <" % v[1]) if k == Net.chosen_map else String(v[1])
 
 func _scan() -> void:
     if scanning:

@@ -39,6 +39,7 @@ func _ready() -> void:
     player.position = start_position()
     hud.player = player
     hud.respawn_requested.connect(_on_respawn)
+    hud.map_picked.connect(choose_offline_map)
     Net.started.connect(start_mp)
     Net.host_lost.connect(_on_host_lost)
     Net.match_ended.connect(_on_match_ended)
@@ -613,8 +614,20 @@ var active_patrol: Array[Vector2] = []
 var world_env: WorldEnvironment
 var main_sun: DirectionalLight3D
 
+var offline_map := "shipment"   # chosen with the map buttons in the menu
+
 func pick_map_id() -> String:
-    return "desert" if randf() < 0.5 else "shipment"
+    return offline_map
+
+# Called by the menu when a map button is tapped (single player only).
+func choose_offline_map(id: String) -> void:
+    offline_map = id
+    if Net.active or map_id == id:
+        return
+    _load_map(id)
+    for b in bots:
+        b.spawn(spawn_point(b))
+    player.respawn()
 
 func _load_map(id: String) -> void:
     if map_root != null:
