@@ -133,7 +133,7 @@ func _build_rifle_model() -> void:
     _box(gun, Vector3(0.022, 0.022, 0.5), Vector3(0, 0.025, -0.62), gm)
     _box(gun, Vector3(0.046, 0.07, 0.18), Vector3(0, 0.0, 0.28), pl)
     _box(gun, Vector3(0.034, 0.1, 0.045), Vector3(0, -0.1, 0.12), pl)
-    _box(gun, Vector3(0.034, 0.2, 0.05), Vector3(0, -0.17, 0.0), pl)
+    _rpart("mag", _box(gun, Vector3(0.034, 0.2, 0.05), Vector3(0, -0.17, 0.0), pl))
     _box(gun, Vector3(0.04, 0.02, 0.08), Vector3(0, 0.085, -0.12), gm)
     _box(gun, Vector3(0.066, 0.006, 0.06), Vector3(0, 0.125, -0.12), gm)
     _box(gun, Vector3(0.007, 0.007, 0.003), Vector3(0, 0.1, -0.09), _mat(Color(1, 0.16, 0.16), true))
@@ -332,21 +332,21 @@ func _weapon(dt: float, sliding: bool) -> void:
         y += 0.03 * (1.0 - a)
         z -= 0.05 * (1.0 - a)
         rz += 0.12 * (1.0 - a)
-    var rw := 0.0
+    var rrot := Vector3.ZERO
     if reloading:
         reload_t += dt
-        rw = clampf(minf(reload_t / 0.3, (2.0 - reload_t) / 0.25), 0.0, 1.0)
+        rrot = _reload_pose(clampf(reload_t / 2.0, 0.0, 1.0))
         if reload_t >= 2.0:
             var n := mini(int(WEAPONS[cur]["mag"]) - mag, reserve)
             mag += n
             reserve -= n
             reloading = false
             hud.set_ammo(mag, reserve)
-    x -= 0.05 * rw
-    y -= 0.05 * rw
-    z += 0.04 * rw
-    rz += 0.5 * rw
-    rx -= 0.15 * rw
+    else:
+        _reset_parts()
+    rx += rrot.x
+    ry += rrot.y
+    rz += rrot.z
     gun.position = Vector3(x, y, z)
     gun.rotation = Vector3(rx, ry, rz)
     var fire_now: bool = firing and (bool(WEAPONS[cur]["auto"]) or not was_firing)
@@ -451,6 +451,8 @@ func respawn() -> void:
 
 # ---------- weapons: swap, grenades, ammo pickups, screen shake ----------
 func _clear_model() -> void:
+    rparts.clear()
+    rrest.clear()
     for c in gun.get_children():
         gun.remove_child(c)
         c.queue_free()
@@ -473,7 +475,7 @@ func _build_pistol_model() -> void:
     _box(gun, Vector3(0.05, 0.065, 0.2), Vector3(0, 0.02, -0.2), gm)
     _box(gun, Vector3(0.048, 0.085, 0.07), Vector3(0, -0.035, -0.17), pl)
     _box(gun, Vector3(0.012, 0.014, 0.1), Vector3(0, 0.07, -0.12), gm)
-    _box(gun, Vector3(0.044, 0.14, 0.06), Vector3(0, -0.11, -0.05), pl)
+    _rpart("mag", _box(gun, Vector3(0.044, 0.14, 0.06), Vector3(0, -0.11, -0.05), pl))
     _box(gun, Vector3(0.12, 0.1, 0.12), Vector3(-0.02, -0.12, 0.02), glove)
     _box(gun, Vector3(0.1, 0.1, 0.3), Vector3(-0.07, -0.2, 0.2), sleeve)
     muzzle = Marker3D.new()
@@ -521,7 +523,7 @@ func _build_smg_model() -> void:
     _box(gun, Vector3(0.06, 0.072, 0.24), Vector3(0, 0.03, 0.0), gm)
     _box(gun, Vector3(0.034, 0.034, 0.2), Vector3(0, 0.03, -0.3), pl)
     _box(gun, Vector3(0.05, 0.02, 0.2), Vector3(0, 0.07, -0.12), gm)
-    _box(gun, Vector3(0.03, 0.22, 0.05), Vector3(0, -0.11, 0.0), pl)
+    _rpart("mag", _box(gun, Vector3(0.03, 0.22, 0.05), Vector3(0, -0.11, 0.0), pl))
     _box(gun, Vector3(0.04, 0.12, 0.05), Vector3(0, -0.09, 0.14), pl)
     _box(gun, Vector3(0.04, 0.05, 0.14), Vector3(0, 0.0, 0.26), tanm)
     _hands(-0.36)
@@ -537,7 +539,7 @@ func _build_lmg_model() -> void:
     _box(gun, Vector3(0.03, 0.03, 0.2), Vector3(0, 0.03, -0.6), gm)
     _box(gun, Vector3(0.012, 0.13, 0.012), Vector3(-0.03, -0.07, -0.56), pl)
     _box(gun, Vector3(0.012, 0.13, 0.012), Vector3(0.03, -0.07, -0.56), pl)
-    _box(gun, Vector3(0.1, 0.12, 0.14), Vector3(0.07, -0.01, 0.0), tanm)
+    _rpart("ammo", _box(gun, Vector3(0.1, 0.12, 0.14), Vector3(0.07, -0.01, 0.0), tanm))
     _box(gun, Vector3(0.04, 0.12, 0.05), Vector3(0, -0.1, 0.12), pl)
     _box(gun, Vector3(0.05, 0.08, 0.22), Vector3(0, -0.01, 0.32), pl)
     _hands(-0.42)
@@ -575,8 +577,8 @@ func _build_sniper_model() -> void:
     _cyl(Vector3(0, 0.12, 0.205), 0.026, 0.01, Vector3(PI / 2, 0, 0), glass)     # rear lens
     _cyl(Vector3(0, 0.19, -0.03), 0.014, 0.03, Vector3(0, 0, 0), gm)             # elevation turret
     _cyl(Vector3(0.042, 0.12, -0.03), 0.014, 0.03, Vector3(0, 0, PI / 2), gm)    # windage turret
-    _box(gun, Vector3(0.02, 0.02, 0.04), Vector3(0.035, 0.05, 0.04), tanm)       # bolt handle
-    _box(gun, Vector3(0.036, 0.13, 0.05), Vector3(0, -0.1, 0.0), pl)             # magazine
+    _rpart("bolt", _box(gun, Vector3(0.02, 0.02, 0.04), Vector3(0.035, 0.05, 0.04), tanm))  # bolt handle
+    _rpart("mag", _box(gun, Vector3(0.036, 0.13, 0.05), Vector3(0, -0.1, 0.0), pl))  # magazine
     _box(gun, Vector3(0.036, 0.12, 0.05), Vector3(0, -0.09, 0.14), pl)           # grip
     _box(gun, Vector3(0.055, 0.1, 0.34), Vector3(0, -0.01, 0.32), tanm)          # stock
     _hands(-0.38)
@@ -590,7 +592,8 @@ func _build_shotgun_model() -> void:
     _box(gun, Vector3(0.08, 0.09, 0.26), Vector3(0, 0.03, 0.0), gm)
     _box(gun, Vector3(0.05, 0.05, 0.36), Vector3(0, 0.04, -0.31), pl)
     _box(gun, Vector3(0.03, 0.03, 0.42), Vector3(0, -0.01, -0.2), pl)
-    _box(gun, Vector3(0.07, 0.05, 0.12), Vector3(0, -0.01, -0.36), tanm)
+    _rpart("pump", _box(gun, Vector3(0.07, 0.05, 0.12), Vector3(0, -0.01, -0.36), tanm))
+    _rpart("shell", _box(gun, Vector3(0.025, 0.025, 0.07), Vector3(0.2, -0.02, -0.15), tanm))
     _box(gun, Vector3(0.04, 0.13, 0.05), Vector3(0, -0.1, 0.1), pl)
     _box(gun, Vector3(0.05, 0.1, 0.22), Vector3(0, 0.0, 0.33), tanm)
     _hands(-0.36)
@@ -607,13 +610,85 @@ func _build_marksman_model() -> void:
     _box(gun, Vector3(0.058, 0.058, 0.24), Vector3(0, 0.02, -0.28), tanm)        # tan handguard
     _box(gun, Vector3(0.026, 0.026, 0.36), Vector3(0, 0.03, -0.56), pl)          # medium barrel
     _box(gun, Vector3(0.04, 0.04, 0.07), Vector3(0, 0.03, -0.74), gm)            # muzzle brake
-    var mag := _box(gun, Vector3(0.034, 0.17, 0.05), Vector3(0, -0.1, -0.02), pl)  # magazine
-    mag.rotation.x = 0.15
+    var mg := _box(gun, Vector3(0.034, 0.17, 0.05), Vector3(0, -0.1, -0.02), pl)  # magazine
+    mg.rotation.x = 0.15
+    _rpart("mag", mg)
+    _rpart("charge", _box(gun, Vector3(0.012, 0.02, 0.04), Vector3(0.0, 0.1, 0.05), gm))  # charging handle
     _box(gun, Vector3(0.038, 0.12, 0.05), Vector3(0, -0.09, 0.13), pl)           # grip
     _box(gun, Vector3(0.05, 0.08, 0.26), Vector3(0, -0.01, 0.3), tanm)           # stock
     _box(gun, Vector3(0.04, 0.03, 0.12), Vector3(0, 0.03, 0.22), gm)             # cheek riser
     _hands(-0.3)
     _add_muzzle(-0.8, 0.03)
+
+# ---------- reload animations: each weapon moves its own named parts (p goes 0 -> 1 over the reload) ----------
+var rparts := {}   # part name -> node that moves during a reload
+var rrest := {}    # part name -> [position, rotation] at rest
+
+func _rpart(pname: String, n: Node3D) -> void:
+    rparts[pname] = n
+    rrest[pname] = [n.position, n.rotation]
+
+func _ss(x: float) -> float:
+    return x * x * (3.0 - 2.0 * x)
+
+# Ramps 0 -> 1 across [a, b], holds at 1 until c, then eases back to 0 by d.
+func _hold(p: float, a: float, b: float, c: float, d: float) -> float:
+    var up := _ss(clampf((p - a) / (b - a), 0.0, 1.0))
+    var down := _ss(clampf((p - c) / (d - c), 0.0, 1.0))
+    return up * (1.0 - down)
+
+func _reset_parts() -> void:
+    for k in rparts:
+        var n: Node3D = rparts[k]
+        var r: Array = rrest[k]
+        n.position = r[0]
+        n.rotation = r[1]
+        n.visible = k != "shell"
+
+func _move(pname: String, p: float, a: float, b: float, c: float, d: float, off: Vector3) -> void:
+    if not rparts.has(pname):
+        return
+    var r: Array = rrest[pname]
+    (rparts[pname] as Node3D).position = r[0] + off * _hold(p, a, b, c, d)
+
+func _turn(pname: String, p: float, a: float, b: float, c: float, d: float, rot: Vector3) -> void:
+    if not rparts.has(pname):
+        return
+    var r: Array = rrest[pname]
+    (rparts[pname] as Node3D).rotation = r[1] + rot * _hold(p, a, b, c, d)
+
+# Moves this weapon's parts for progress p and returns the gun-level tilt to add this frame.
+func _reload_pose(p: float) -> Vector3:
+    match cur:
+        "pistol":
+            _move("mag", p, 0.0, 0.25, 0.6, 0.9, Vector3(0, -0.2, 0.0))
+            return Vector3(0, 0, 0.15 * _hold(p, 0.0, 0.25, 0.6, 0.9))
+        "smg":
+            _move("mag", p, 0.0, 0.15, 0.5, 0.6, Vector3(0, -0.25, 0.0))
+            return Vector3(0.08 * _hold(p, 0.55, 0.65, 0.7, 0.8), 0, 0)
+        "lmg":
+            _move("ammo", p, 0.0, 0.35, 0.6, 0.95, Vector3(0.25, 0, 0))
+            return Vector3(-0.2 * _hold(p, 0.0, 0.35, 0.6, 0.95), 0, 0)
+        "sniper":
+            _move("mag", p, 0.0, 0.25, 0.7, 0.9, Vector3(0, -0.2, 0.0))
+            _move("bolt", p, 0.3, 0.38, 0.42, 0.5, Vector3(0, 0, 0.1))
+            return Vector3(-0.08 * _hold(p, 0.3, 0.38, 0.42, 0.5), 0, 0)
+        "shotgun":
+            if rparts.has("shell"):
+                var sh: Node3D = rparts["shell"]
+                sh.visible = p >= 0.1 and p < 0.45
+                sh.position = (rrest["shell"][0] as Vector3).lerp(Vector3(0, -0.01, -0.12), _ss(clampf((p - 0.1) / 0.3, 0.0, 1.0)))
+            _move("pump", p, 0.6, 0.7, 0.75, 0.9, Vector3(0, 0, 0.08))
+            var tilt := _hold(p, 0.0, 0.1, 0.45, 0.55)
+            return Vector3(0.2 * tilt, 0, 0.1 * tilt)
+        "marksman":
+            _move("mag", p, 0.0, 0.3, 0.65, 0.95, Vector3(0, -0.2, 0.0))
+            _move("charge", p, 0.8, 0.85, 0.9, 0.98, Vector3(0, 0, 0.08))
+            return Vector3(0, 0, 0.1 * _hold(p, 0.0, 0.3, 0.65, 0.95))
+        _:
+            _move("mag", p, 0.0, 0.3, 0.6, 0.9, Vector3(0, -0.22, 0.04))
+            _turn("mag", p, 0.0, 0.3, 0.6, 0.9, Vector3(0.2, 0, 0))
+            return Vector3(0, 0, 0.25 * _hold(p, 0.0, 0.3, 0.6, 0.9))
 
 func _swap_to(id: String) -> void:
     if id == cur or swap_t > 0.0 or dead:
