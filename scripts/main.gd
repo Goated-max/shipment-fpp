@@ -214,16 +214,22 @@ func zone_base(zone: String) -> float:
         _:
             return 24.0
 
-func hit_bot(b, zone: String, mult := 1.0) -> void:
+# Zone damage: a weapon's own zdmg table wins over the default zone values.
+func _zone_dmg(zone: String, zdmg: Dictionary) -> float:
+    if zdmg.has(zone):
+        return float(zdmg[zone])
+    return zone_base(zone)
+
+func hit_bot(b, zone: String, mult := 1.0, zdmg: Dictionary = {}) -> void:
     shots_hit += 1
     if zone == "head":
         headshots += 1
     if b is RemotePlayer:
         hud.hitmark(zone == "head")
         play("hitm", 0.8)
-        Net.request_hit(b.pid, zone, zone_base(zone) * mult)
+        Net.request_hit(b.pid, zone, _zone_dmg(zone, zdmg) * mult)
         return
-    damage_bot(b, zone_base(zone) * mult, zone == "head")
+    damage_bot(b, _zone_dmg(zone, zdmg) * mult, zone == "head")
 
 func spawn_point(me) -> Vector2:
     var pp := Vector2(0, 28)

@@ -14,7 +14,7 @@ const WEAPONS := {
     "assault": {"name": "VANGUARD", "cat": "Assault", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21), "move": 0.9, "ads_speed": 9.0},
     "smg": {"name": "VIPER", "cat": "SMG", "mag": 30, "max": 120, "rate": 0.07, "auto": true, "spread": 0.012, "dmg": 0.83, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21), "move": 1.05, "ads_speed": 13.0, "fo_start": 15.0, "fo_end": 45.0},
     "lmg": {"name": "WARDEN", "cat": "LMG", "mag": 100, "max": 200, "rate": 0.09, "auto": true, "spread": 0.016, "dmg": 1.1, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21), "move": 0.8, "ads_speed": 6.5, "recoil": 1.3, "reload": 3.0, "fo_start": 25.0, "fo_end": 70.0},
-    "sniper": {"name": "LONGSHOT", "cat": "Sniper", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.12, 0.0)},
+    "sniper": {"name": "LONGSHOT", "cat": "Sniper", "mag": 5, "max": 0, "rate": 0.5, "auto": false, "spread": 0.004, "dmg": 1.0, "zdmg": {"upper": 96.0, "head": 96.0, "lower": 90.0}, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.12, 0.0), "move": 0.85, "ads_move": 0.4, "ads_speed": 4.5, "recoil": 0.5, "reload": 2.5},
     "shotgun": {"name": "BREACHER", "cat": "Shotgun", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.1, -0.21)},
     "marksman": {"name": "HAWK", "cat": "Marksman", "mag": 30, "max": 120, "rate": 0.085, "auto": true, "spread": 0.012, "dmg": 1.0, "hip": Vector3(0.2, -0.16, -0.5), "ads": Vector3(0.0, -0.11, -0.088)},
     "pistol": {"name": "PISTOL", "mag": 12, "max": 60, "rate": 0.2, "auto": false, "spread": 0.008, "dmg": 1.2, "hip": Vector3(0.17, -0.14, -0.38), "ads": Vector3(0.0, -0.09, -0.2)},
@@ -50,6 +50,8 @@ var reloading := false
 var reload_t := 0.0
 var ads := false
 var ads_t := 0.0
+var bolt_t := 0.0      # sniper bolt cycle + scope-back-in timer
+var was_scope := false
 var sp_t := 0.0
 var cd := 0.0
 var kick := 0.0
@@ -210,7 +212,7 @@ func _physics_process(dt: float) -> void:
             sp = SPRINT
         else:
             sp = WALK * mvmag
-        sp *= float(WEAPONS[cur].get("move", 1.0))
+        sp *= float(WEAPONS[cur].get("move", 1.0)) * lerpf(1.0, float(WEAPONS[cur].get("ads_move", 1.0)), ads_t)
         hv = hv.lerp(Vector2(wish.x, wish.z) * sp, 1.0 - exp(-(40.0 if is_on_floor() else 4.0) * dt))
     velocity.x = hv.x
     velocity.z = hv.y
@@ -294,7 +296,16 @@ func _start_reload() -> void:
 
 func _weapon(dt: float, sliding: bool) -> void:
     var firing: bool = hud.firing
-    if hud.take("ads") and not reloading:
+    var sniper := cur == "sniper"
+    # sniper: hold ADS to scope, letting go fires one round (if fully scoped)
+    if sniper and was_scope and not hud.ads_held and ads_t > 0.6 and bolt_t <= 0.0 and mag > 0 and not reloading and swap_t <= 0.0:
+        _shoot()
+        bolt_t = 0.5
+    if sniper:
+        was_scope = hud.ads_held
+        hud.take("ads")
+        ads = hud.ads_held and not reloading
+    elif hud.take("ads") and not reloading:
         ads = not ads
         if ads:
             hud.lock = false
@@ -312,7 +323,7 @@ func _weapon(dt: float, sliding: bool) -> void:
         ads = false
     was_sprint = sprint
     # firing auto-aims down sights (sprint is already blocked while firing)
-    if hud.aim_fire and not reloading and not sprint:
+    if hud.aim_fire and not reloading and not sprint and not sniper:
         ads = true
     cd -= dt
     gren_cd -= dt
@@ -322,7 +333,15 @@ func _weapon(dt: float, sliding: bool) -> void:
         bloom = lerpf(bloom, 0.0, 1.0 - exp(-5.0 * dt))
     if idle > 0.25:
         shots = 0
-    ads_t = lerpf(ads_t, 1.0 if ads else 0.0, 1.0 - exp(-float(WEAPONS[cur].get("ads_speed", 12.0)) * dt))
+    if bolt_t > 0.0:
+        # after a shot: the bolt cycles and the scope comes back in over 0.5 s (if still held)
+        bolt_t -= dt
+        if hud.ads_held:
+            ads_t = minf(1.0, ads_t + dt / 0.5)
+        else:
+            ads_t = maxf(0.0, ads_t - dt * 4.0)
+    else:
+        ads_t = lerpf(ads_t, 1.0 if ads else 0.0, 1.0 - exp(-float(WEAPONS[cur].get("ads_speed", 12.0)) * dt))
     var use_s := sprint and is_on_floor() and not firing and idle > 0.25 and not reloading and not ads
     sp_t = lerpf(sp_t, 1.0 if use_s else 0.0, 1.0 - exp(-(9.0 if use_s else 30.0) * dt))
     var sw_off := 0.0
@@ -372,7 +391,9 @@ func _weapon(dt: float, sliding: bool) -> void:
     rz += rrot.z
     gun.position = Vector3(x, y, z)
     gun.rotation = Vector3(rx, ry, rz)
-    var fire_now: bool = firing and (bool(WEAPONS[cur]["auto"]) or not was_firing)
+    if bolt_t > 0.0 and rparts.has("bolt"):
+        (rparts["bolt"] as Node3D).position = (rrest["bolt"][0] as Vector3) + Vector3(0, 0, 0.1 * sin(PI * (1.0 - bolt_t / 0.5)))
+    var fire_now: bool = firing and not sniper and (bool(WEAPONS[cur]["auto"]) or not was_firing)
     was_firing = firing
     if fire_now and not reloading and cd <= 0.0 and swap_t <= 0.0:
         if mag > 0:
@@ -407,7 +428,7 @@ func _shoot() -> void:
     if not bh.is_empty():
         var bt: float = bh["t"]
         end = org + d * bt
-        main.hit_bot(bh["bot"], bh["zone"], float(WEAPONS[cur]["dmg"]) * _falloff(bt))
+        main.hit_bot(bh["bot"], bh["zone"], float(WEAPONS[cur]["dmg"]) * _falloff(bt), WEAPONS[cur].get("zdmg", {}))
     elif not wr.is_empty():
         main.impact(wr["position"], wr["normal"])
     main.spawn_tracer(muzzle.global_position, end)
@@ -861,6 +882,8 @@ func _ads_fov() -> float:
 
 func _reset_slots() -> void:
     swap_t = 0.0
+    bolt_t = 0.0
+    was_scope = false
     swap_to = ""
     cur = primary_pick
     slots = {cur: {"mag": int(WEAPONS[cur]["mag"]), "res": int(WEAPONS[cur]["max"])}, "pistol": {"mag": 12, "res": 60}}

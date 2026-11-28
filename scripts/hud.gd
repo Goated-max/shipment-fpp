@@ -197,6 +197,7 @@ var look := Vector2.ZERO
 var lock := false
 var firing := false
 var aim_fire := false
+var ads_held := false   # ADS button is physically held (used by the sniper)
 var sprint_key := false
 var sens := 1.0
 var hp := 100.0
@@ -556,6 +557,7 @@ var spec_rating := {
     "assault": {"damage": 6.0, "fire": 7.0, "accuracy": 6.0, "mobility": 6.0, "range": 8.0, "control": 7.0},
     "smg": {"damage": 5.0, "fire": 8.0, "accuracy": 6.0, "mobility": 8.0, "range": 4.0, "control": 6.0},
     "lmg": {"damage": 6.0, "fire": 7.0, "accuracy": 4.0, "mobility": 3.0, "range": 7.0, "control": 4.0},
+    "sniper": {"damage": 9.0, "fire": 2.0, "accuracy": 9.0, "mobility": 3.0, "range": 9.0, "control": 8.0},
 }
 
 func _mini_btn(box: Control, text: String, cb: Callable) -> void:
@@ -665,23 +667,33 @@ func _fill_specs(gid: String) -> void:
     var w: Dictionary = Player.WEAPONS[gid]
     var dmg := float(w["dmg"])
     var rate := float(w["rate"])
+    var zd: Dictionary = w.get("zdmg", {})
+    var up := float(zd.get("upper", 24.0 * dmg))
+    var lo := float(zd.get("lower", 14.0 * dmg))
+    var hd := float(zd.get("head", 48.0 * dmg))
     var rng := "120 m, no drop-off"
     if w.has("fo_start"):
         rng = "falloff %d-%d m" % [int(w["fo_start"]), int(w["fo_end"])]
+    var fire_txt := "%d RPM" % roundi(60.0 / rate)
+    if rate >= 0.3:
+        fire_txt = "1 shot / %.1f s" % rate
     var txt := {
-        "damage": "U %d  L %d  H %d" % [roundi(24.0 * dmg), roundi(14.0 * dmg), roundi(48.0 * dmg)],   # upper, lower, head   # 24 / 48 base from main.hit_bot
-        "fire": "%d RPM" % roundi(60.0 / rate),
+        "damage": "U %d  L %d  H %d" % [roundi(up), roundi(lo), roundi(hd)],   # upper, lower, head
+        "fire": fire_txt,
         "accuracy": "hip spread %.3f" % float(w["spread"]),
         "mobility": "%.1f m/s walk" % (Player.WALK * float(w.get("move", 1.0))),
         "range": rng,
-        "control": "%.4f rise / shot" % (0.0065 * float(w.get("recoil", 1.0))),                                     # recoil gain in player.gd
+        "control": "%.4f rise / shot" % (0.0065 * float(w.get("recoil", 1.0))),   # recoil gain in player.gd
     }
     var rt: Dictionary = spec_rating[gid]
     for k in pp_spec_bars:
         var pair: Array = pp_spec_bars[k]
         (pair[0] as ProgressBar).value = float(rt[k])
         (pair[1] as Label).text = String(txt[k])
-    pp_spec_ammo.text = "Magazine %d / Reserve %d / Reload %.1f s" % [int(w["mag"]), int(w["max"]), float(w.get("reload", 2.0))]
+    if int(w["max"]) <= 0:
+        pp_spec_ammo.text = "Ammo: %d rounds total, no reserve" % int(w["mag"])
+    else:
+        pp_spec_ammo.text = "Magazine %d / Reserve %d / Reload %.1f s" % [int(w["mag"]), int(w["max"]), float(w.get("reload", 2.0))]
 
 func _equip_preview() -> void:
     _pick_primary(pp_cur)
@@ -1087,6 +1099,7 @@ func _clear_input() -> void:
     aim_fire = false
     fire_state["fire"] = false
     fire_state["fire2"] = false
+    ads_held = false
     for id in BTN_IDS:
         (btns[id] as TouchBtn).set_down(false)
     for k in ev:
@@ -1142,6 +1155,10 @@ func _press(id: String, on: bool) -> void:
         aim_fire = fire_state["fire"]
         if firing:
             lock = false
+    elif id == "ads":
+        ads_held = on
+        if on:
+            ev[id] = true
     elif on:
         ev[id] = true
 
